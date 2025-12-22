@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>PPAP | Bomberman</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            html, body {
+                padding: 0;
+                margin: 0;
+                height: 100%;
+                width: 100%;
+                overflow: hidden;
+                background-color: #1a1a1a; 
+            }
+
+            body {
+                display: flex;
+                justify-content: center;
+                align-items: center;    
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            }
+
+            #app {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                box-shadow: 0 0 20px rgba(0,0,0,0.5);
+                position: relative;
+            }
+
+            canvas {
+                display: block;
+                image-rendering: pixelated; 
+                image-rendering: crisp-edges;
+            }
+        </style>
+        <script type="module" src="./src/index.ts"></script>
+    <script type="importmap">
+{
+  "imports": {
+    "effect": "https://esm.sh/effect@^3.19.13"
+  }
+}
+</script>
+</head>
+    <body>
+        <div id="app"></div>
+    </body>
+</html>
