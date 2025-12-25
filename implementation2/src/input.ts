@@ -1,3 +1,4 @@
+//bruh need paba naka effects to, kasi di ko alam pano
 export type KeyboardInput = {
     up: boolean
     down: boolean
@@ -10,7 +11,6 @@ export type KeyboardInput = {
     d: boolean
     x: boolean    
 }
-
 const currentInput: KeyboardInput = {
     up: false,
     down: false,
@@ -31,11 +31,11 @@ window.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") currentInput.left = true
     if (e.key === "ArrowRight") currentInput.right = true
     if (e.key === " ") currentInput.space = true
-    if (e.key === "w" || e.key === "W") currentInput.w = true
-    if (e.key === "s" || e.key === "S") currentInput.s = true
-    if (e.key === "a" || e.key === "A") currentInput.a = true
-    if (e.key === "d" || e.key === "D") currentInput.d = true
-    if (e.key === "x" || e.key === "X") currentInput.x = true
+    if (e.key.toLowerCase() === "w") currentInput.w = true
+    if (e.key.toLowerCase() === "s") currentInput.s = true
+    if (e.key.toLowerCase() === "a") currentInput.a = true
+    if (e.key.toLowerCase() === "d") currentInput.d = true
+    if (e.key.toLowerCase() === "x") currentInput.x = true
 })
 
 window.addEventListener("keyup", (e) => {
@@ -44,12 +44,14 @@ window.addEventListener("keyup", (e) => {
     if (e.key === "ArrowLeft") currentInput.left = false
     if (e.key === "ArrowRight") currentInput.right = false
     if (e.key === " ") currentInput.space = false
-    if (e.key === "w" || e.key === "W") currentInput.w = false
-    if (e.key === "s" || e.key === "S") currentInput.s = false
-    if (e.key === "a" || e.key === "A") currentInput.a = false
-    if (e.key === "d" || e.key === "D") currentInput.d = false
-    if (e.key === "x" || e.key === "X") currentInput.x = false
+    if (e.key.toLowerCase() === "w") currentInput.w = false
+    if (e.key.toLowerCase() === "s") currentInput.s = false
+    if (e.key.toLowerCase() === "a") currentInput.a = false
+    if (e.key.toLowerCase() === "d") currentInput.d = false
+    if (e.key.toLowerCase() === "x") currentInput.x = false
+
 })
+
 export const getInputKey = (): KeyboardInput => {
     return { ...currentInput }
 }

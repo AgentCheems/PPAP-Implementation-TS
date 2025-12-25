@@ -47,28 +47,44 @@ export const view = (model: Model): CanvasElement[] => {
     })
     // POWERUPS
     HM.forEach(model.powerups, (pu) => {
-        const px = pu.x * TILE_SIZE + 5
-        const py = pu.y * TILE_SIZE + 5
+        const px = pu.x * TILE_SIZE
+        const py = pu.y * TILE_SIZE
 // readonly type: PowerupType.FireUp | PowerupType.BombUp | PowerupType.SpeedUp;
 
-        // let imgSrc = ""
-        const imgSrc = Match.value(pu.type).pipe(
-            Match.when(PowerupType.FireUp, () => 
+        let pow = ""
+        
+        Match.value(pu.type).pipe(
+            Match.when(PowerupType.FireUp, () => {
                 "./image/fire_up.png"
+                pow = "fireUp"
+            }
             ),
-            Match.when(PowerupType.BombUp, () => 
+            Match.when(PowerupType.BombUp, () => {
                 "./image/bomb_up.png"
+                pow = "bombUp"
+            }
             ),
-            Match.when(PowerupType.SpeedUp, () => 
+            Match.when(PowerupType.SpeedUp, () => {
                 "./image/speed_up.png"
+                pow = "speedUp"
+            }
             ),
             Match.orElse(() => "")
         )
-        elements.push(CanvasImage.make({
-            x: px,
-            y: py,
-            src: imgSrc
-        }))
+        // elements.push(CanvasImage.make({
+        //     x: px,
+        //     y: py,
+        //     src: imgSrc
+        // }))
+        elements.push(Text.make({
+                x: px + TILE_SIZE/2,
+                y: py + TILE_SIZE/2, 
+                text: pow,
+                color: "white",
+                fontSize: 12,
+            font: "bold Arial",
+            textAlign: "center"
+            }))
     })
 
 
@@ -122,7 +138,7 @@ export const view = (model: Model): CanvasElement[] => {
             }))
             elements.push(Text.make({
                 x: p.x_coordinate * TILE_SIZE,
-                y: (p.y_coordinate * TILE_SIZE) - TILE_SIZE/2 - 11,
+                y: (p.y_coordinate * TILE_SIZE), //- TILE_SIZE/2 - 11,
                 text: label,
                 color: "white",
                 fontSize: 12,
@@ -130,9 +146,9 @@ export const view = (model: Model): CanvasElement[] => {
             textAlign: "center"
             }))
         }
+    }
         renderPlayer(model.player1, "./assets/p1_sprite.png", "P1")
         renderPlayer(model.player2, "./assets/p2_sprite.png", "P2")    
-    }
 
     // 6. HUD (Timer)
     // Format mm:ss
@@ -167,7 +183,7 @@ export const view = (model: Model): CanvasElement[] => {
             x: (COLS * TILE_SIZE) / 2,
             y: (ROWS * TILE_SIZE) / 2,
             text: msg,
-            color: GameStatus.P1_WIN ? "lime" : "red",
+            color: "white",
             fontSize: 48,
             font: "bold Arial",
             textAlign: "center"

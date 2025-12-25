@@ -100,7 +100,7 @@ const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs: 
             const target_x = player.target_x + dx //confusing ba ung naming omg whtff
             const target_y = player.target_y + dy
 
-            if (!isTileBlocked(grid, bombs, Math.floor(target_x), Math.floor(target_x))) {
+            if (!isTileBlocked(grid, bombs, Math.floor(target_x), Math.floor(target_y))) {
                 return {
                         ...player,
                         target_x: target_x,
@@ -110,6 +110,27 @@ const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs: 
             }
             return player
 }
+
+const handleBombPlant = (p: Player, planted: boolean, owner: string, bombs: HM.HashMap<number, Bomb>): HM.HashMap<number, Bomb> => {
+                if (planted && p.is_alive) {
+                    const bx = Math.floor(p.x_coordinate)
+                    const by = Math.floor(p.y_coordinate)
+                    const k = getIntKey(bx, by)
+                    const activeCount = HM.reduce(bombs, 0, (acc, bomb) => bomb.owner === owner ? acc + 1 : acc) // ?? huh
+
+                    if (activeCount < p.max_bombs && !HM.has(bombs, k)) {
+                        return HM.set(bombs, k, Bomb.make({
+                                id: `${owner}_${Date.now()}`,
+                                x: bx,
+                                y: by,
+                                timer: BOMB_TIMER_SECONDS * FPS,
+                                range: p.bomb_range,
+                                owner: owner
+                        }))
+                    }
+                }
+            return bombs
+            }
 
 export const update = (msg: Msg, model : Model): Model =>
     Match.value(msg).pipe(
@@ -176,14 +197,22 @@ export const update = (msg: Msg, model : Model): Model =>
                 // what if nasira ung powerup sa bomba
                 result.destroyedPowerups.forEach(pow => { newPowerups = HM.remove(newPowerups, pow)})
                 // sisirain nya ung blocks
-                result.brokenSoftBlocks.forEach(pos => { newGrid[pos.y][pos.x] = Empty.make({}) })
+                result.brokenSoftBlocks.forEach(pos => { newGrid[pos.y][pos.x] = Empty.make({}) 
                 // pag nakasira ng softblock, spawn powerup
-                if ((Math.random() * 100) < settings.softBlockChance) {
+                if ((Math.random() * 100) < settings.powerupChance) {
                     const prob = Math.random()
                     let type = PowerupType.SpeedUp
                     if (prob < 0.33) type = PowerupType.FireUp
                     else if (prob <0.66) type = PowerupType.BombUp
+
+                    const k = getIntKey(pos.x, pos.y)
+                    newPowerups = HM.set(newPowerups, k, PowerUp.make({
+                    type: type,
+                    x: pos.x,
+                    y: pos.y
+            }))
                 }
+                })
                 // chain reaction pag nakahit ng di pa nageexplode na bomb
                 result.hitBombs.forEach(k => { if (!processedBombs.has(k)) processingQueue.push(k) })
                 // remove bombs sa hashmap once exploded
@@ -197,15 +226,17 @@ export const update = (msg: Msg, model : Model): Model =>
             let p1 = {...model.player1}
             let p2 = {...model.player2}
 
+
             // HANDLES P1
             if (p1.is_alive) {
                 let dx = 0
                 let dy = 0
                 if (newKeyInput.up) dy = -1 
                 else if (newKeyInput.down) dy = 1 
-                else if (newKeyInput.left) dy = -1 
-                else if (newKeyInput.right) dy = 1 
+                else if (newKeyInput.left) dx = -1 
+                else if (newKeyInput.right) dx = 1 
                 p1 = tryWalk(p1, dx, dy, newGrid, newBombs)
+                newBombs = handleBombPlant(p1, p1_planted, "P1", newBombs)
                 
             }
 
@@ -215,9 +246,11 @@ export const update = (msg: Msg, model : Model): Model =>
                 let dy = 0
                 if (newKeyInput.w) dy = -1 
                 else if (newKeyInput.s) dy = 1 
-                else if (newKeyInput.a) dy = -1 
-                else if (newKeyInput.d) dy = 1 
+                else if (newKeyInput.a) dx = -1 
+                else if (newKeyInput.d) dx = 1 
                 p2 = tryWalk(p2, dx, dy, newGrid, newBombs)
+                newBombs = handleBombPlant(p2, p2_planted, "P2", newBombs)
+
             }
 
             // COLLISION??
@@ -252,26 +285,33 @@ export const update = (msg: Msg, model : Model): Model =>
                 return nextPlayer
             }
 
+            p1 = checkCollisions(p1)
+            p2 = checkCollisions(p2)
+
             const countBombs = (owner: string) => HM.reduce(newBombs, 0, (acc, b) => b.owner === owner ? acc + 1 : acc)
             p1.bombs_active = countBombs('P1')
             p2.bombs_active = countBombs('P2')
 
 
             let nextStatus = model.status
-            if (!p1.is_alive && p2.is_alive) {
+            if (!p1.is_alive && p2.is_alive) { // pag napatay ng p2 si p1
                 if (model.lastTickTime - p1.death_tick_delay > FPS) {
                     nextStatus = GameStatus.P2_WIN
                 }
-            } else if (!p2.is_alive && p1.is_alive) {
+            } else if (!p2.is_alive && p1.is_alive) { // pag napatay ng p1 si p2
                 if (model.lastTickTime - p2.death_tick_delay > FPS) {
                     nextStatus = GameStatus.P1_WIN
                 }
-            } else if (!p1.is_alive && !p2.is_alive) {
-                if (Math.abs(p2.death_tick_delay - p1.death_tick_delay) <= FPS) {
-                    nextStatus = GameStatus.P2_WIN
-                } else {
-                if (p2.death_tick_delay > p1.death_tick_delay) nextStatus = GameStatus.P1_WIN
-                else nextStatus = GameStatus.P2_WIN
+            } else if (!p1.is_alive && !p2.is_alive) { // pag sabay namatay pareho
+                // if (Math.abs(p2.death_tick_delay - p1.death_tick_delay) <= FPS/4) { // ito pwede ichange ung /4
+                if (p1.death_tick_delay === p2.death_tick_delay) { // too strict
+                    nextStatus = GameStatus.DRAW
+                } else { // kung sino late namatay panalo
+                    if (p2.death_tick_delay > p1.death_tick_delay) {
+                        nextStatus = GameStatus.P2_WIN
+                    } else {
+                        nextStatus = GameStatus.P1_WIN
+                    }
                 } 
             }
 
@@ -281,9 +321,11 @@ export const update = (msg: Msg, model : Model): Model =>
                 status: nextStatus,
                 grid: newGrid,
                 bombs: newBombs,
+                powerups: newPowerups,
                 explosions: newExplosions,
                 player1: p1,
                 player2: p2,
+                input: newKeyInput,
                 timeTickAcc: newTickAcc >= FPS ? 0 : newTickAcc,
                 timeLeft: newTimeLeft,
                 lastTickTime: model.lastTickTime + 1

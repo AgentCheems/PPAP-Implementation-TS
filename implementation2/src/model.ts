@@ -162,10 +162,10 @@ const generateGrid = (): Array<Array<Cell>> => {
 }
 
 export const initPlayer = (x: number, y: number): Player => Player.make({
-    x_coordinate: 1.5,
-    y_coordinate: 1.5,
-    target_x: 1.5,
-    target_y: 1.5,
+    x_coordinate: x,
+    y_coordinate: y,
+    target_x: x,
+    target_y: y,
     is_alive: true,
     death_tick_delay: 0,
     bombs_active: 0,
