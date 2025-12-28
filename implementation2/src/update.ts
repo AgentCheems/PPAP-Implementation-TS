@@ -732,7 +732,6 @@ export const update = (msg: Msg, model: Model): Model => {
 
         // HANDLES P3 (always bot if present)
         if (p3 && p3.is_alive) {
-            // Bot behavior for P3 with discrete movement
             const botResult = updateBot(p3, newGrid, newBombs, newExplosions, "P3", model.lastTickTime)
             p3 = botResult.player
             newBombs = botResult.bombs
@@ -785,7 +784,7 @@ export const update = (msg: Msg, model: Model): Model => {
 
         let nextStatus = model.status
         
-        // Check win conditions for Phase 3
+        // Check win conditions
         const alivePlayers: string[] = []
         if (p1.is_alive) alivePlayers.push("P1")
         if (p2.is_alive) alivePlayers.push("P2")
