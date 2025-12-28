@@ -4,13 +4,14 @@ export type KeyboardInput = {
     down: boolean
     left: boolean
     right: boolean
-    space: boolean 
+    space: boolean
     w: boolean
     s: boolean
     a: boolean
     d: boolean
-    x: boolean    
+    x: boolean
 }
+
 const currentInput: KeyboardInput = {
     up: false,
     down: false,
@@ -49,7 +50,6 @@ window.addEventListener("keyup", (e) => {
     if (e.key.toLowerCase() === "a") currentInput.a = false
     if (e.key.toLowerCase() === "d") currentInput.d = false
     if (e.key.toLowerCase() === "x") currentInput.x = false
-
 })
 
 export const getInputKey = (): KeyboardInput => {
