@@ -12,6 +12,21 @@ export enum GameStatus {
     DRAW
 }
 
+export type BotType = typeof BotType.Type
+export const BotType = S.Union(
+    S.Literal("hostile"),
+    S.Literal("careful"),
+    S.Literal("greedy"),
+)
+
+export type BotState = typeof BotState.Type
+export const BotState = S.Union(
+    S.Literal("wander"),
+    S.Literal("attack"),
+    S.Literal("escape"),
+    S.Literal("getPowerup")
+)
+
 
 // INPUTS
 export type InputState = typeof InputState.Type;
@@ -64,8 +79,8 @@ export const Player = S.Struct({
     max_bombs: S.Number,
     speed_multi: S.Number,
     // AI Effects
-    bot_type: S.String, // gawin paba tong Struct Union nakaktamad namamn
-    bot_state: S.String,
+    bot_type: BotType, // gawin paba tong Struct Union nakaktamad namamn
+    bot_state: BotState,
     bot_goal_x: S.Number,
     bot_goal_y: S.Number,
     bot_path: S.Array(S.Struct({
@@ -142,17 +157,22 @@ export type Model = typeof Model.Type;
 const generateGrid = (): Array<Array<Cell>> => {
     const grid: Cell[][] = [];
     const isSafe = (x: number, y: number) => {
-        // Four Corners:
+        // Four Corners (spawn points):
         if ((x == 1 && y == 1) || (x == COLS - 2 && y == ROWS - 2)) return true;
         if ((x == COLS - 2 && y == 1) || (x == 1 && y == ROWS - 2)) return true;
-        // P1 Adjacents
+        
+        // P1 Adjacents (top-left: 1, 1)
         if ((x == 1 && y == 2) || (x == 2 && y == 1)) return true;
-        // P2 Adjacents
-        if ((x == COLS - 2 && y == ROWS - 3) || (x == COLS - 3 && y == ROWS - 2)) return true;
-        // P3 Adjacents
+        
+        // P2 Adjacents (top-right: COLS-2, 1) = (13, 1)
         if ((x == COLS - 2 && y == 2) || (x == COLS - 3 && y == 1)) return true;
-        // P4 Adjacents
+        
+        // P3 Adjacents (bottom-left: 1, ROWS-2) = (1, 11)
         if ((x == 1 && y == ROWS - 3) || (x == 2 && y == ROWS - 2)) return true;
+        
+        // P4 Adjacents (bottom-right: COLS-2, ROWS-2) = (13, 11)
+        if ((x == COLS - 2 && y == ROWS - 3) || (x == COLS - 3 && y == ROWS - 2)) return true;
+        
         return false;
     };
 
@@ -186,7 +206,7 @@ const generateGrid = (): Array<Array<Cell>> => {
 };
 
 export const initPlayer = (p: string, x: number, y: number, isBot: boolean = false): Player => {
-    let type = "hostile"
+    let type: BotType = "hostile"
     if (p=== "P3") type = "careful"
     if (p=== "P4") type = "greedy"
     
@@ -207,7 +227,7 @@ export const initPlayer = (p: string, x: number, y: number, isBot: boolean = fal
     speed_multi: 1.0,
 
     bot_type: type,
-    bot_state: "wanderer",
+    bot_state: "wander",
     bot_goal_x: x,
     bot_goal_y: y,
     bot_path: [],
@@ -256,5 +276,5 @@ export const initModel = Model.make({
     gameEndTimer: -1,
     numHumanPlayers: settings.numHumanPlayers || 1,
     numBots: settings.numBots || 0,
-    debugMode: false
+    debugMode: true
 });

@@ -58,7 +58,7 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
         y: cy,
         radius: radiusCells * TILE_SIZE,
         color: "red",
-        lineWidth: 1
+        lineWidth: 2
       }))
     }
 
@@ -70,7 +70,7 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
       color: "white",
       fontSize: 10,
       font: "sans-serif",
-      textAlign: "left"
+      textAlign: "center"
     }))
 
     // 3. Draw Bot State (Below feet)
@@ -81,7 +81,7 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
       color: "yellow",
       fontSize: 10,
       font: "sans-serif",
-      textAlign: "left"
+      textAlign: "center"
     }))
 
     // 4. Draw Path Markers

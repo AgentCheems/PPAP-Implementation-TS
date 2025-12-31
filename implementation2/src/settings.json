@@ -1,7 +1,7 @@
 {
-  "softBlockChance": 70,
+  "softBlockChance": 50,
   "powerupChance": 30,
-  "gameDuration": 60,
+  "gameDuration": 120,
   "numHumanPlayers": 1,
   "numBots": 3,
   "botPlantChance": 15,

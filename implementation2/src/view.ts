@@ -15,7 +15,7 @@ export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = [];
     elements.push(Clear.make({ color: "#228822" }));
     
-    // Render grid
+    // Render grid 
     model.grid.forEach((row, y) => {
         row.forEach((cell, x) => {
             const px = x * TILE_SIZE;

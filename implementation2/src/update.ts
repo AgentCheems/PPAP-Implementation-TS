@@ -115,15 +115,14 @@ const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs:
     return player
 }
 
-const handleBombPlant = (p: Player, planted: boolean, owner: string, bombs:
-HM.HashMap<number, Bomb>): HM.HashMap<number, Bomb> => {
+const handleBombPlant = (p: Player, planted: boolean, owner: string, bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>): HM.HashMap<number, Bomb> => {
     if (planted && p.is_alive) {
         const bx = Math.floor(p.x_coordinate)
         const by = Math.floor(p.y_coordinate)
         const k = getIntKey(bx, by)
         const activeCount = HM.reduce(bombs, 0, (acc, bomb) =>
             bomb.owner === owner ? acc + 1 : acc)
-        if (activeCount < p.max_bombs && !HM.has(bombs, k)) {
+        if (activeCount < p.max_bombs && !HM.has(bombs, k) && !HM.has(powerups, k)) {
             return HM.set(bombs, k, Bomb.make({
                 id: `${owner}_${Date.now()}`,
                 x: bx,
@@ -136,7 +135,6 @@ HM.HashMap<number, Bomb>): HM.HashMap<number, Bomb> => {
     }
     return bombs
 }
-
 
 export const update = (msg: Msg, model: Model): Model => {
     return Match.value(msg).pipe(
@@ -205,6 +203,7 @@ export const update = (msg: Msg, model: Model): Model => {
                 result.brokenSoftBlocks.forEach(pos => { 
                     newGrid[pos.y][pos.x] = Empty.make({})
                     // pag nakasira ng softblock, spawn powerup
+                    
                     if ((Math.random() * 100) < settings.powerupChance) {
                         const prob = Math.random()
                         let type = PowerupType.SpeedUp
@@ -278,7 +277,7 @@ export const update = (msg: Msg, model: Model): Model => {
                 // A/ Bot handling
                 if (p.is_bot) {
                     let botPlayer = updateBotLogic(p, NewInitializedModel)
-                    newBombs = handleBombPlant(botPlayer, botPlayer.bot_should_plant, p.id, newBombs)
+                    newBombs = handleBombPlant(botPlayer, botPlayer.bot_should_plant, p.id, newBombs, newPowerups)
                     botPlayer = checkCollisions(botPlayer)
                     return {
                         ...botPlayer,
@@ -307,7 +306,7 @@ export const update = (msg: Msg, model: Model): Model => {
                 }
             
                 let walkPlayer = tryWalk(p, dx, dy, newGrid, newBombs)
-                newBombs = handleBombPlant(walkPlayer, plant, p.id, newBombs)
+                newBombs = handleBombPlant(walkPlayer, plant, p.id, newBombs, newPowerups)
                 walkPlayer = checkCollisions(walkPlayer)
                 const updatedWalkPlayer = {
                     ...walkPlayer,
