@@ -1,4 +1,4 @@
-import { CanvasElement, OutlinedCircle, SolidRectangle, Text} from "cs12251-mvu/src/canvas";
+import { CanvasElement, OutlinedCircle, SolidCircle, SolidRectangle, Text} from "cs12251-mvu/src/canvas";
 import { Match, pipe } from "effect";
 import { TILE_SIZE } from "./constants";
 import { Player } from "./model";
@@ -49,16 +49,15 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
     // Only if dangerDist > 0 (Hostile is 0, so no circle)
     // Note: Assuming you have a `config` object or property on bot to get dangerDist.
     // If not, we map it manually like in Python:
-        const dangerDistMap: Record<string, number> = { hostile: 0, careful: 4, greedy: 2 }
+        const dangerDistMap: Record<string, number> = { hostile: 1, careful: 4, greedy: 2 }
         const radiusCells = dangerDistMap[bot.bot_type] || 0
 
     if (radiusCells > 0) {
-      elements.push(OutlinedCircle.make({
+      elements.push(SolidCircle.make({
         x: cx,
         y: cy,
         radius: radiusCells * TILE_SIZE,
-        color: "red",
-        lineWidth: 2
+        color: "rgba(255, 0, 0, 0.1)"
       }))
     }
 

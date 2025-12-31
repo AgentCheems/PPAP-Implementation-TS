@@ -1,5 +1,5 @@
 {
-  "softBlockChance": 50,
+  "softBlockChance": 70,
   "powerupChance": 30,
   "gameDuration": 120,
   "numHumanPlayers": 1,
