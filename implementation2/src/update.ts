@@ -80,55 +80,55 @@ const isTileBlocked = (grid: readonly (readonly Cell[])[], bombs:
 
 const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs:
     HM.HashMap<number, Bomb>): Player => {
-    const isMoving = Math.abs(player.x_coordinate - player.target_x) > 0.05 ||
-        Math.abs(player.y_coordinate - player.target_y) > 0.05
+    const isMoving = Math.abs(player.xCoordinate - player.targetX) > 0.05 ||
+        Math.abs(player.yCoordinate - player.targetY) > 0.05
     if (isMoving) {
         let nextPlayer = {...player}
-        const speed = PLAYER_SPEED * player.speed_multi
+        const speed = PLAYER_SPEED * player.speedMulti
         // Move X
-        if (nextPlayer.x_coordinate < nextPlayer.target_x) {
-            nextPlayer.x_coordinate = Math.min(nextPlayer.x_coordinate + speed, nextPlayer.target_x)
-        } else if (nextPlayer.x_coordinate > nextPlayer.target_x) {
-            nextPlayer.x_coordinate = Math.max(nextPlayer.x_coordinate - speed, nextPlayer.target_x)
+        if (nextPlayer.xCoordinate < nextPlayer.targetX) {
+            nextPlayer.xCoordinate = Math.min(nextPlayer.xCoordinate + speed, nextPlayer.targetX)
+        } else if (nextPlayer.xCoordinate > nextPlayer.targetX) {
+            nextPlayer.xCoordinate = Math.max(nextPlayer.xCoordinate - speed, nextPlayer.targetX)
         }
         // Move Y
-        if (nextPlayer.y_coordinate < nextPlayer.target_y) {
-            nextPlayer.y_coordinate = Math.min(nextPlayer.y_coordinate + speed, nextPlayer.target_y)
-        } else if (nextPlayer.y_coordinate > nextPlayer.target_y) {
-            nextPlayer.y_coordinate = Math.max(nextPlayer.y_coordinate - speed, nextPlayer.target_y)
+        if (nextPlayer.yCoordinate < nextPlayer.targetY) {
+            nextPlayer.yCoordinate = Math.min(nextPlayer.yCoordinate + speed, nextPlayer.targetY)
+        } else if (nextPlayer.yCoordinate > nextPlayer.targetY) {
+            nextPlayer.yCoordinate = Math.max(nextPlayer.yCoordinate - speed, nextPlayer.targetY)
         }
         return nextPlayer
     }
 
     if (dx == 0 && dy == 0) return player
 
-    const target_x = player.target_x + dx
-    const target_y = player.target_y + dy
+    const targetX = player.targetX + dx
+    const targetY = player.targetY + dy
 
-    if (!isTileBlocked(grid, bombs, Math.floor(target_x), Math.floor(target_y))) {
+    if (!isTileBlocked(grid, bombs, Math.floor(targetX), Math.floor(targetY))) {
         return {
             ...player,
-            target_x: target_x,
-            target_y: target_y
+            targetX: targetX,
+            targetY: targetY
         }
     }
     return player
 }
 
 const handleBombPlant = (p: Player, planted: boolean, owner: string, bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>): HM.HashMap<number, Bomb> => {
-    if (planted && p.is_alive) {
-        const bx = Math.floor(p.x_coordinate)
-        const by = Math.floor(p.y_coordinate)
+    if (planted && p.isAlive) {
+        const bx = Math.floor(p.xCoordinate)
+        const by = Math.floor(p.yCoordinate)
         const k = getIntKey(bx, by)
         const activeCount = HM.reduce(bombs, 0, (acc, bomb) =>
             bomb.owner === owner ? acc + 1 : acc)
-        if (activeCount < p.max_bombs && !HM.has(bombs, k) && !HM.has(powerups, k)) {
+        if (activeCount < p.maxBombs && !HM.has(bombs, k) && !HM.has(powerups, k)) {
             return HM.set(bombs, k, Bomb.make({
                 id: `${owner}_${Date.now()}`,
                 x: bx,
                 y: by,
                 timer: BOMB_TIMER_SECONDS * FPS,
-                range: p.bomb_range,
+                range: p.bombRange,
                 owner: owner
             }))
         }
@@ -229,10 +229,10 @@ export const update = (msg: Msg, model: Model): Model => {
 
             // COLLISION CHECKING
             const checkCollisions = (player: Player): Player => {
-                if (!player.is_alive) return player
+                if (!player.isAlive) return player
                 let nextPlayer = { ...player }
-                const cx = nextPlayer.x_coordinate
-                const cy = nextPlayer.y_coordinate
+                const cx = nextPlayer.xCoordinate
+                const cy = nextPlayer.yCoordinate
                 const tile_x = Math.floor(cx)
                 const tile_y = Math.floor(cy)
 
@@ -242,11 +242,11 @@ export const update = (msg: Msg, model: Model): Model => {
                     if (Math.abs(cx-(tile_x+0.5)) < 0.4 && Math.abs(cy-(tile_y+0.5)) < 0.4) {
                         const powerup = pu.value
                         if (powerup.type === PowerupType.BombUp)
-                            nextPlayer.max_bombs += 1
+                            nextPlayer.maxBombs += 1
                         if (powerup.type === PowerupType.FireUp)
-                            nextPlayer.bomb_range += 1
+                            nextPlayer.bombRange += 1
                         if (powerup.type === PowerupType.SpeedUp)
-                            nextPlayer.speed_multi += 0.3
+                            nextPlayer.speedMulti += 0.3
                         newPowerups = HM.remove(newPowerups, key)
                     }
                 }
@@ -255,8 +255,8 @@ export const update = (msg: Msg, model: Model): Model => {
                 for (const exp of newExplosions) {
                     if (tile_x === exp.x && tile_y === exp.y) {
                         // bogsh !
-                        nextPlayer.is_alive = false
-                        nextPlayer.death_tick_delay = model.lastTickTime
+                        nextPlayer.isAlive = false
+                        nextPlayer.deathTickDelay = model.lastTickTime
                     }
                 }
                 return nextPlayer
@@ -272,12 +272,12 @@ export const update = (msg: Msg, model: Model): Model => {
             }
 
             const nextPlayers = model.players.map(p => {
-                if (!p.is_alive) return p
+                if (!p.isAlive) return p
 
                 // A/ Bot handling
                 if (p.is_bot) {
                     let botPlayer = updateBotLogic(p, NewInitializedModel)
-                    newBombs = handleBombPlant(botPlayer, botPlayer.bot_should_plant, p.id, newBombs, newPowerups)
+                    newBombs = handleBombPlant(botPlayer, botPlayer.botShouldPlant, p.id, newBombs, newPowerups)
                     botPlayer = checkCollisions(botPlayer)
                     return {
                         ...botPlayer,
@@ -317,7 +317,7 @@ export const update = (msg: Msg, model: Model): Model => {
 
             // 6. WIN cONDITIONS
             let nextStatus = model.status
-            const alivePlayers = nextPlayers.filter(p => p.is_alive)
+            const alivePlayers = nextPlayers.filter(p => p.isAlive)
 
             if (alivePlayers.length === 1) {
                 const winner = alivePlayers[0].id

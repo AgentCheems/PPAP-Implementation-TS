@@ -67,28 +67,28 @@ export const Player = S.Struct({
     id: S.String, // mas better na itong P1. P2. P3. P4
     is_bot: S.Boolean,  // Added for Phase 3
     // -- keep the same
-    x_coordinate: S.Number,
-    y_coordinate: S.Number,
-    target_x: S.Number,
-    target_y: S.Number,
-    is_alive: S.Boolean,
-    death_tick_delay: S.Number, // one-second delay before their opponent is declared the winner
+    xCoordinate: S.Number,
+    yCoordinate: S.Number,
+    targetX: S.Number,
+    targetY: S.Number,
+    isAlive: S.Boolean,
+    deathTickDelay: S.Number, // one-second delay before their opponent is declared the winner
     // Bomb Stats
-    bombs_active: S.Number,
-    bomb_range: S.Number,
-    max_bombs: S.Number,
-    speed_multi: S.Number,
+    bombsActive: S.Number,
+    bombRange: S.Number,
+    maxBombs: S.Number,
+    speedMulti: S.Number,
     // AI Effects
-    bot_type: BotType, // gawin paba tong Struct Union nakaktamad namamn
-    bot_state: BotState,
-    bot_goal_x: S.Number,
-    bot_goal_y: S.Number,
-    bot_path: S.Array(S.Struct({
+    botType: BotType, // gawin paba tong Struct Union nakaktamad namamn
+    botState: BotState,
+    botGoalX: S.Number,
+    botGoalY: S.Number,
+    botPath: S.Array(S.Struct({
         x: S.Number,
         y: S.Number
     })),
-    bot_ticks_since_think: S.Number, //djaskstra reevaluation counter
-    bot_should_plant: S.Boolean
+    botTicksSinceThink: S.Number, //djaskstra reevaluation counter
+    botShouldPlant: S.Boolean
 
 });
 
@@ -215,24 +215,24 @@ export const initPlayer = (p: string, x: number, y: number, isBot: boolean = fal
 
     id: p,
     is_bot: isBot,
-    x_coordinate: x,
-    y_coordinate: y,
-    target_x: x,
-    target_y: y,
-    is_alive: true,
-    death_tick_delay: 0,
-    bombs_active: 0,
-    max_bombs: 1,
-    bomb_range: 1,
-    speed_multi: 1.0,
+    xCoordinate: x,
+    yCoordinate: y,
+    targetX: x,
+    targetY: y,
+    isAlive: true,
+    deathTickDelay: 0,
+    bombsActive: 0,
+    maxBombs: 1,
+    bombRange: 1,
+    speedMulti: 1.0,
 
-    bot_type: type,
-    bot_state: "wander",
-    bot_goal_x: x,
-    bot_goal_y: y,
-    bot_path: [],
-    bot_ticks_since_think: 0,
-    bot_should_plant: false
+    botType: type,
+    botState: "wander",
+    botGoalX: x,
+    botGoalY: y,
+    botPath: [],
+    botTicksSinceThink: 0,
+    botShouldPlant: false
 })
 };
 

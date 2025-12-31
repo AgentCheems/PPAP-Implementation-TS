@@ -17,8 +17,8 @@ const getDangerMap = (
     bot: Player
 ): Set<number> => {
     const danger = new Set<number>()
-    const config = BOT_CONFIGS[bot.bot_type]
-    const botPos = { x: Math.floor(bot.x_coordinate), y: Math.floor(bot.y_coordinate) }
+    const config = BOT_CONFIGS[bot.botType]
+    const botPos = { x: Math.floor(bot.xCoordinate), y: Math.floor(bot.yCoordinate) }
     const limitDist = config.dangerDist
 
     const mark = (x: number, y: number) => {
@@ -135,7 +135,7 @@ const getShortestPath = (
 // --- ESCAPE LOGIC (BFS) ---
 const decideEscape = (bot: Player, model: Model, dangerMap: Set<number>): Player => {
     let nextBot = { ...bot }
-    const startNode = { x: Math.floor(bot.x_coordinate), y: Math.floor(bot.y_coordinate) }
+    const startNode = { x: Math.floor(bot.xCoordinate), y: Math.floor(bot.yCoordinate) }
     const queue: { pt: Point, path: Point[] }[] = [{ pt: startNode, path: [] }]
     const visited = new Set<number>([getIntKey(startNode.x, startNode.y)])
 
@@ -164,24 +164,24 @@ const decideEscape = (bot: Player, model: Model, dangerMap: Set<number>): Player
     }
 
     if (bestPath.length > 0) {
-        nextBot.bot_state = "escape"
-        nextBot.bot_path = bestPath
+        nextBot.botState = "escape"
+        nextBot.botPath = bestPath
         const last = bestPath[bestPath.length - 1]
-        nextBot.bot_goal_x = last.x
-        nextBot.bot_goal_y = last.y
+        nextBot.botGoalX = last.x
+        nextBot.botGoalY = last.y
     } else {
-        nextBot.bot_state = "wander" // Trapped!
-        nextBot.bot_path = []
+        nextBot.botState = "wander" // Trapped!
+        nextBot.botPath = []
     }
     return nextBot
 }
 
 // --- SAFETY CHECK ---
 const isSafeToPlant = (bot: Player, model: Model): boolean => {
-    const bx = Math.floor(bot.x_coordinate)
-    const by = Math.floor(bot.y_coordinate)
+    const bx = Math.floor(bot.xCoordinate)
+    const by = Math.floor(bot.yCoordinate)
     const simulatedBombs = HM.set(model.bombs, getIntKey(bx, by), Bomb.make({
-        id: "sim", x: bx, y: by, timer: 300, range: bot.bomb_range, owner: bot.id
+        id: "sim", x: bx, y: by, timer: 300, range: bot.bombRange, owner: bot.id
     }))
 
     const danger = getDangerMap(simulatedBombs, model.explosions, model.grid, bot)
@@ -208,9 +208,9 @@ const isSafeToPlant = (bot: Player, model: Model): boolean => {
 // --- GOAL DECISION ---
 const decideGoal = (bot: Player, model: Model, dangerMap: Set<number>): Player => {
     let nextBot = { ...bot }
-    const bPos = { x: Math.floor(bot.x_coordinate), y: Math.floor(bot.y_coordinate) }
-    const config = BOT_CONFIGS[bot.bot_type]
-    const hasAmmo = bot.bombs_active < bot.max_bombs
+    const bPos = { x: Math.floor(bot.xCoordinate), y: Math.floor(bot.yCoordinate) }
+    const config = BOT_CONFIGS[bot.botType]
+    const hasAmmo = bot.bombsActive < bot.maxBombs
 
     let goals: { pt: Point, type: any, priority: number }[] = []
 
@@ -219,8 +219,8 @@ const decideGoal = (bot: Player, model: Model, dangerMap: Set<number>): Player =
 
     // 2. Attack Players
     model.players.forEach(p => {
-        if (p.id !== bot.id && p.is_alive) {
-            goals.push({ pt: { x: Math.floor(p.x_coordinate), y: Math.floor(p.y_coordinate) }, type: "attack", priority: 2 })
+        if (p.id !== bot.id && p.isAlive) {
+            goals.push({ pt: { x: Math.floor(p.xCoordinate), y: Math.floor(p.yCoordinate) }, type: "attack", priority: 2 })
         }
     })
 
@@ -241,20 +241,20 @@ const decideGoal = (bot: Player, model: Model, dangerMap: Set<number>): Player =
 
         if (g.type === "attack") {
             if (getDist(bPos, g.pt) <= config.plantDist && hasAmmo && isSafeToPlant(bot, model)) {
-                nextBot.bot_should_plant = true
-                nextBot.bot_state = "attack"
+                nextBot.botShouldPlant = true
+                nextBot.botState = "attack"
                 return nextBot
             }
         }
 
-        const allowDig = (bot.bot_type === "hostile" && hasAmmo) || (g.type === "wander" && hasAmmo)
+        const allowDig = (bot.botType === "hostile" && hasAmmo) || (g.type === "wander" && hasAmmo)
         const path = getShortestPath(bPos, g.pt, model.grid, model.bombs, model.explosions, dangerMap, allowDig)
 
         if (path.length > 0) {
-            nextBot.bot_path = path
-            nextBot.bot_state = g.type
-            nextBot.bot_goal_x = g.pt.x
-            nextBot.bot_goal_y = g.pt.y
+            nextBot.botPath = path
+            nextBot.botState = g.type
+            nextBot.botGoalX = g.pt.x
+            nextBot.botGoalY = g.pt.y
             return nextBot
         }
     }
@@ -264,46 +264,46 @@ const decideGoal = (bot: Player, model: Model, dangerMap: Set<number>): Player =
 // --- MAIN UPDATE ---
 export const updateBotLogic = (bot: Player, model: Model): Player => {
     let nextBot = { ...bot }
-    nextBot.bot_should_plant = false
+    nextBot.botShouldPlant = false
 
-    const bx = Math.floor(bot.x_coordinate)
-    const by = Math.floor(bot.y_coordinate)
+    const bx = Math.floor(bot.xCoordinate)
+    const by = Math.floor(bot.yCoordinate)
     const dangerMap = getDangerMap(model.bombs, model.explosions, model.grid, bot)
     const inDanger = dangerMap.has(getIntKey(bx, by))
-    const config = BOT_CONFIGS[bot.bot_type]
+    const config = BOT_CONFIGS[bot.botType]
 
     // 1. DANGER / ESCAPE
     if (inDanger) {
         // Only repath if we aren't already escaping or our current escape path is now dangerous
-        const needsEscapePath = nextBot.bot_state !== "escape" || 
-                               nextBot.bot_path.length === 0 || 
-                               dangerMap.has(getIntKey(nextBot.bot_path[0].x, nextBot.bot_path[0].y))
+        const needsEscapePath = nextBot.botState !== "escape" || 
+                               nextBot.botPath.length === 0 || 
+                               dangerMap.has(getIntKey(nextBot.botPath[0].x, nextBot.botPath[0].y))
         if (needsEscapePath) {
             nextBot = decideEscape(nextBot, model, dangerMap)
         }
     } 
     // 2. NORMAL THINKING
     else {
-        nextBot.bot_ticks_since_think++
+        nextBot.botTicksSinceThink++
         const interval = config.reevalInterval * FPS
-        const needsGoal = nextBot.bot_path.length === 0 || 
-                         nextBot.bot_ticks_since_think > interval ||
-                         (bx === nextBot.bot_goal_x && by === nextBot.bot_goal_y)
+        const needsGoal = nextBot.botPath.length === 0 || 
+                         nextBot.botTicksSinceThink > interval ||
+                         (bx === nextBot.botGoalX && by === nextBot.botGoalY)
 
         if (needsGoal) {
             nextBot = decideGoal(nextBot, model, dangerMap)
-            nextBot.bot_ticks_since_think = 0
+            nextBot.botTicksSinceThink = 0
         }
     }
 
     // 3. MOVEMENT (Strictly Orthogonal)
-    if (nextBot.bot_path.length > 0) {
-        const next = nextBot.bot_path[0]
+    if (nextBot.botPath.length > 0) {
+        const next = nextBot.botPath[0]
         const cell = model.grid[next.y][next.x]
 
         if (cell._tag === "SoftBlock") {
-            if (bot.bombs_active < bot.max_bombs && isSafeToPlant(bot, model)) {
-                nextBot.bot_should_plant = true
+            if (bot.bombsActive < bot.maxBombs && isSafeToPlant(bot, model)) {
+                nextBot.botShouldPlant = true
             }
             // Wait here while planting/waiting for ammo
         } else if (HM.has(model.bombs, getIntKey(next.x, next.y))) {
@@ -311,24 +311,24 @@ export const updateBotLogic = (bot: Player, model: Model): Player => {
         } else {
             const targetX = next.x + 0.5
             const targetY = next.y + 0.5
-            const dx = targetX - nextBot.x_coordinate
-            const dy = targetY - nextBot.y_coordinate
-            const speed = PLAYER_SPEED * nextBot.speed_multi
+            const dx = targetX - nextBot.xCoordinate
+            const dy = targetY - nextBot.yCoordinate
+            const speed = PLAYER_SPEED * nextBot.speedMulti
 
             // FIX: ORTHOGONAL MOVEMENT
             // Prioritize aligning with one axis before moving on the other.
             // This prevents diagonal "sliding."
             if (Math.abs(dx) > 0.1) {
                 const moveX = Math.sign(dx) * Math.min(speed, Math.abs(dx))
-                nextBot.x_coordinate += moveX
+                nextBot.xCoordinate += moveX
             } else if (Math.abs(dy) > 0.1) {
                 const moveY = Math.sign(dy) * Math.min(speed, Math.abs(dy))
-                nextBot.y_coordinate += moveY
+                nextBot.yCoordinate += moveY
             }
 
             // If close enough to target center, consume path node
-            if (Math.abs(nextBot.x_coordinate - targetX) < 0.1 && Math.abs(nextBot.y_coordinate - targetY) < 0.1) {
-                nextBot.bot_path = nextBot.bot_path.slice(1)
+            if (Math.abs(nextBot.xCoordinate - targetX) < 0.1 && Math.abs(nextBot.yCoordinate - targetY) < 0.1) {
+                nextBot.botPath = nextBot.botPath.slice(1)
             }
         }
     }

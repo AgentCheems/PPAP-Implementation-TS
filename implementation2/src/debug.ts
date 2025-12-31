@@ -40,17 +40,17 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
   const elements: CanvasElement[] = []
 
     players.forEach(bot => {
-        if (!bot.is_bot || !bot.is_alive) return
+        if (!bot.is_bot || !bot.isAlive) return
 
-        const cx = bot.x_coordinate * TILE_SIZE
-        const cy = bot.y_coordinate * TILE_SIZE
+        const cx = bot.xCoordinate * TILE_SIZE
+        const cy = bot.yCoordinate * TILE_SIZE
 
     // 1. Draw Danger Radius
     // Only if dangerDist > 0 (Hostile is 0, so no circle)
     // Note: Assuming you have a `config` object or property on bot to get dangerDist.
     // If not, we map it manually like in Python:
         const dangerDistMap: Record<string, number> = { hostile: 1, careful: 4, greedy: 2 }
-        const radiusCells = dangerDistMap[bot.bot_type] || 0
+        const radiusCells = dangerDistMap[bot.botType] || 0
 
     if (radiusCells > 0) {
       elements.push(SolidCircle.make({
@@ -65,7 +65,7 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
     elements.push(Text.make({
       x: cx,
       y: cy - 25,
-      text: bot.bot_type,
+      text: bot.botType,
       color: "white",
       fontSize: 10,
       font: "sans-serif",
@@ -76,7 +76,7 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
     elements.push(Text.make({
       x: cx,
       y: cy + 25,
-      text: bot.bot_state.toUpperCase(),
+      text: bot.botState.toUpperCase(),
       color: "yellow",
       fontSize: 10,
       font: "sans-serif",
@@ -87,7 +87,7 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
     // Iterate through the bot's calculated path
     const { dx, dy, color } = getPathMarkerOffset(bot.id)
 
-    bot.bot_path.forEach(step => {
+    bot.botPath.forEach(step => {
         elements.push(SolidRectangle.make({
             x: step.x * TILE_SIZE + dx,
             y: step.y * TILE_SIZE + dy,
