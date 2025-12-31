@@ -9,6 +9,7 @@ import {
 import { Model, GameStatus, PowerupType } from "./model";
 import { ROWS, COLS, TILE_SIZE } from "./constants";
 import { Match, HashMap as HM } from "effect";
+import { getDebugElements } from "./debug";
 
 export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = [];
@@ -145,13 +146,28 @@ export const view = (model: Model): CanvasElement[] => {
         }));
     };
 
-    renderPlayer(model.player1, "./assets/p1_sprite.png", "P1");
-    renderPlayer(model.player2, "./assets/p2_sprite.png", "P2");
+    //RENDERING PLAYERS
+    model.players.forEach(p=> {
+        if (p.id == "P1") renderPlayer(p, "./assets/p1_sprite.png", "P1");
+        if (p.id == "P2") renderPlayer(p, "./assets/p2_sprite.png", "P2");
+        if (p.id == "P3") renderPlayer(p, "./assets/p3_sprite.png", "P3");
+        if (p.id == "P4") renderPlayer(p, "./assets/p4_sprite.png", "P4");
+
+    })
+
+    // DEBUG
+
+    if (model.debugMode) elements.push(...getDebugElements(model.players))
+
+
+
+    // renderPlayer(model.player1, "./assets/p1_sprite.png", "P1");
+    // renderPlayer(model.player2, "./assets/p2_sprite.png", "P2");
     
-    // Add P3 rendering if present - Phase 3
-    if (model.player3) {
-        renderPlayer(model.player3, "./assets/p3_sprite.png", "P3");
-    }
+    // // Add P3 rendering if present - Phase 3
+    // if (model.player3) {
+    //     renderPlayer(model.player3, "./assets/p3_sprite.png", "P3");
+    // }
 
     // HUD (Timer)
     const min = Math.floor(model.timeLeft / 60).toString().padStart(2, '0');
@@ -182,6 +198,7 @@ export const view = (model: Model): CanvasElement[] => {
         if (model.status === GameStatus.P1_WIN) msg = "P1 WIN!";
         if (model.status === GameStatus.P2_WIN) msg = "P2 WIN!";
         if (model.status === GameStatus.P3_WIN) msg = "P3 WIN!";
+        if (model.status === GameStatus.P4_WIN) msg = "P4 WIN!";
         if (model.status === GameStatus.DRAW) msg = "DRAW";
 
         elements.push(Text.make({

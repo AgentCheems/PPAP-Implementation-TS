@@ -8,8 +8,10 @@ export enum GameStatus {
     P1_WIN,
     P2_WIN,
     P3_WIN,  // Added for Phase 3
+    P4_WIN,
     DRAW
 }
+
 
 // INPUTS
 export type InputState = typeof InputState.Type;
@@ -25,7 +27,9 @@ export const InputState = S.Struct({
     s: S.Boolean,
     a: S.Boolean,
     d: S.Boolean,
-    x: S.Boolean
+    x: S.Boolean,
+    // debugotinarigar
+    escape: S.Boolean
 });
 
 export enum PowerupType {
@@ -45,6 +49,9 @@ export const PowerUp = S.Struct({
 // PLAYER
 export type Player = typeof Player.Type;
 export const Player = S.Struct({
+    id: S.String, // mas better na itong P1. P2. P3. P4
+    is_bot: S.Boolean,  // Added for Phase 3
+    // -- keep the same
     x_coordinate: S.Number,
     y_coordinate: S.Number,
     target_x: S.Number,
@@ -56,7 +63,18 @@ export const Player = S.Struct({
     bomb_range: S.Number,
     max_bombs: S.Number,
     speed_multi: S.Number,
-    isBot: S.Boolean  // Added for Phase 3
+    // AI Effects
+    bot_type: S.String, // gawin paba tong Struct Union nakaktamad namamn
+    bot_state: S.String,
+    bot_goal_x: S.Number,
+    bot_goal_y: S.Number,
+    bot_path: S.Array(S.Struct({
+        x: S.Number,
+        y: S.Number
+    })),
+    bot_ticks_since_think: S.Number, //djaskstra reevaluation counter
+    bot_should_plant: S.Boolean
+
 });
 
 // GRID CELL
@@ -92,9 +110,12 @@ export const ExplosionCell = S.Struct({
 export const Model = S.Struct({
     status: S.Enums(GameStatus),
     grid: S.Array(S.Array(Cell)), // this will be the 13 x 15 layout
-    player1: Player,
-    player2: Player,
-    player3: S.optional(Player), // Added for Phase 3 - optional player
+    players: S.Array(Player),
+
+    // player1: Player,
+    // player2: Player,
+    // player3: S.optional(Player), // Added for Phase 3 - optional player
+
     input: InputState,
     bombs: S.HashMap({
         key: S.Int,
@@ -111,7 +132,9 @@ export const Model = S.Struct({
     gameEndTimer: S.Number,
     // Phase 3 settings
     numHumanPlayers: S.Number,  // Added: 1 or 2 human players
-    numBots: S.Number           // Added: number of bots (1-3)
+    numBots: S.Number,           // Added: number of bots (1-3)
+    // Phase 4
+    debugMode: S.Boolean
 });
 export type Model = typeof Model.Type;
 
@@ -162,7 +185,16 @@ const generateGrid = (): Array<Array<Cell>> => {
     return grid;
 };
 
-export const initPlayer = (x: number, y: number, isBot: boolean = false): Player => Player.make({
+export const initPlayer = (p: string, x: number, y: number, isBot: boolean = false): Player => {
+    let type = "hostile"
+    if (p=== "P3") type = "careful"
+    if (p=== "P4") type = "greedy"
+    
+    return Player.make({
+    
+
+    id: p,
+    is_bot: isBot,
     x_coordinate: x,
     y_coordinate: y,
     target_x: x,
@@ -173,8 +205,16 @@ export const initPlayer = (x: number, y: number, isBot: boolean = false): Player
     max_bombs: 1,
     bomb_range: 1,
     speed_multi: 1.0,
-    isBot: isBot
-});
+
+    bot_type: type,
+    bot_state: "wanderer",
+    bot_goal_x: x,
+    bot_goal_y: y,
+    bot_path: [],
+    bot_ticks_since_think: 0,
+    bot_should_plant: false
+})
+};
 
 export const initInput = InputState.make({
     up: false,
@@ -186,15 +226,26 @@ export const initInput = InputState.make({
     s: false,
     a: false,
     d: false,
-    x: false
+    x: false,
+    escape: false
 });
 
 export const initModel = Model.make({
     status: GameStatus.PLAYING,
     grid: generateGrid(),
-    player1: initPlayer(PLAYER_START_POSITIONS.P1.x, PLAYER_START_POSITIONS.P1.y, false),
-    player2: initPlayer(PLAYER_START_POSITIONS.P2.x, PLAYER_START_POSITIONS.P2.y, settings.numHumanPlayers < 2),
-    player3: settings.numBots >= 1 ? initPlayer(PLAYER_START_POSITIONS.P3.x, PLAYER_START_POSITIONS.P3.y, true) : undefined,
+    players: [
+        //P1 Human
+        initPlayer("P1", PLAYER_START_POSITIONS.P1.x, PLAYER_START_POSITIONS.P1.y, false),
+        //P2 Human o Bot
+        initPlayer("P2", PLAYER_START_POSITIONS.P2.x, PLAYER_START_POSITIONS.P2.y, settings.numHumanPlayers < 2),
+        //P3 Bot if need
+        ...(settings.numBots + settings.numHumanPlayers >= 3? 
+        [initPlayer("P3", PLAYER_START_POSITIONS.P3.x, PLAYER_START_POSITIONS.P3.y, true)]: []),
+        //P4
+        ...(settings.numBots + settings.numHumanPlayers >= 4? 
+        [initPlayer("P4", PLAYER_START_POSITIONS.P4.x, PLAYER_START_POSITIONS.P4.y, true)]: []),
+
+    ],
     input: initInput,
     bombs: HM.empty(),
     powerups: HM.empty(),
@@ -204,5 +255,6 @@ export const initModel = Model.make({
     lastTickTime: 0,
     gameEndTimer: -1,
     numHumanPlayers: settings.numHumanPlayers || 1,
-    numBots: settings.numBots || 0
+    numBots: settings.numBots || 0,
+    debugMode: false
 });

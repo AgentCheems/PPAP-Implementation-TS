@@ -3,7 +3,7 @@
   "powerupChance": 30,
   "gameDuration": 60,
   "numHumanPlayers": 1,
-  "numBots": 2,
+  "numBots": 3,
   "botPlantChance": 15,
   "botMoveChance": 30
 }

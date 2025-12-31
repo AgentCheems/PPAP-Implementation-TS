@@ -5,5 +5,5 @@ export type Msg = typeof Msg.Type
 export const Msg = S.Union(
     // S.TaggedStruct("GameChuChu", {}),
     CanvasMsg,
-    S.TaggedStruct("Restart", {})
+    S.TaggedStruct("Restart", {}),
 )
