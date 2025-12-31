@@ -128,16 +128,18 @@ export const view = (model: Model): CanvasElement[] => {
 
     // PLAYERS
     const renderPlayer = (p: any, imgSrc: string, label: string) => {
-        if (!p.is_alive) return;
+        
+        if (!p.isAlive) return;
+        
         
         elements.push(CanvasImage.make({
-            x: (p.x_coordinate * TILE_SIZE) - TILE_SIZE / 2,
-            y: (p.y_coordinate * TILE_SIZE) - TILE_SIZE / 2,
+            x: (p.xCoordinate * TILE_SIZE) - TILE_SIZE / 2,
+            y: (p.yCoordinate * TILE_SIZE) - TILE_SIZE / 2,
             src: imgSrc
         }));
         elements.push(Text.make({
-            x: p.x_coordinate * TILE_SIZE,
-            y: p.y_coordinate * TILE_SIZE,
+            x: p.xCoordinate * TILE_SIZE,
+            y: p.yCoordinate * TILE_SIZE,
             text: label,
             color: "white",
             fontSize: 12,
