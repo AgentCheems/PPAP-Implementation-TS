@@ -1,3 +1,5 @@
+
+
 import { Model, Bomb, Cell, GameStatus, Empty, HardBlock, SoftBlock,
 ExplosionCell, Player, PowerUp, PowerupType, InputState, 
 initModel} from "./model"
@@ -7,15 +9,11 @@ import { ROWS, COLS, TILE_SIZE, FPS, PLAYER_RADIUS,
 } from "./constants"
 import settings from "./settings.json"
 import { Msg } from "./message"
-import { Match, HashMap as HM, Array as A, pipe } from "effect"
+import { HashMap as HM, Array as A, Option } from "effect"
 import { getInputKey } from "./input"
 import { updateBotLogic } from "./bot"
 
 const getIntKey = (x: number, y: number) => y * COLS + x
-
-// Bot behavior constants for Phase 3
-const BOT_PLANT_CHANCE = settings.botPlantChance || 0
-const BOT_MOVE_CHANCE = settings.botMoveChance || 0
 
 const triggerExplosion = (
     bomb: Bomb,
@@ -56,7 +54,7 @@ const triggerExplosion = (
             if (HM.has(currentBombs, bombKey)) {
                 hitBombs.push(bombKey)
                 newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
-                continue
+                break
             }
             if (HM.has(currentPowerups, bombKey)) {
                 destroyedPowerups.push(bombKey)
@@ -137,9 +135,9 @@ const handleBombPlant = (p: Player, planted: boolean, owner: string, bombs: HM.H
 }
 
 export const update = (msg: Msg, model: Model): Model => {
-    return Match.value(msg).pipe(
-        Match.tag("Canvas.MsgTick", () => {
-        if (model.status !== GameStatus.PLAYING) return model
+    switch ((msg as any)._tag) {
+        case "Canvas.MsgTick": {
+            if (model.status !== GameStatus.PLAYING) return model
 
             const keyInput = getInputKey()
             const newKeyInput = InputState.make(keyInput)
@@ -163,6 +161,10 @@ export const update = (msg: Msg, model: Model): Model => {
             let newPowerups = model.powerups
             let newExplosions = [...model.explosions]
             let newBombs = model.bombs
+            
+            // DETECT EVENTS FOR BOT RE-EVALUATION
+            const prevBombCount = HM.size(model.bombs)
+            const prevExplosionCount = model.explosions.length
             
             // 3. MANAGE ENTITY TIMERS
             // a. decrease explosion timers
@@ -193,7 +195,7 @@ export const update = (msg: Msg, model: Model): Model => {
                 processedBombs.add(key)
     
                 const b = HM.get(newBombs, key)
-                if (b._tag == "None") continue
+                if (Option.isNone(b)) continue
                 const bombData = b.value
                 
                 const result = triggerExplosion(bombData, newGrid, newBombs, newPowerups)
@@ -238,27 +240,21 @@ export const update = (msg: Msg, model: Model): Model => {
 
                 const key = getIntKey(tile_x, tile_y)
                 const pu = HM.get(newPowerups, key)
-                if (pu._tag === "Some") {
-                    if (Math.abs(cx-(tile_x+0.5)) < 0.4 && Math.abs(cy-(tile_y+0.5)) < 0.4) {
-                        const powerup = pu.value
-                        if (powerup.type === PowerupType.BombUp)
-                            nextPlayer.maxBombs += 1
-                        if (powerup.type === PowerupType.FireUp)
-                            nextPlayer.bombRange += 1
-                        if (powerup.type === PowerupType.SpeedUp)
-                            nextPlayer.speedMulti += 0.3
-                        newPowerups = HM.remove(newPowerups, key)
-                    }
+                if (Option.isSome(pu)) {
+                    if (pu.value.type === PowerupType.BombUp)
+                        nextPlayer.maxBombs += 1
+                    if (pu.value.type === PowerupType.FireUp)
+                        nextPlayer.bombRange += 1
+                    if (pu.value.type === PowerupType.SpeedUp)
+                        nextPlayer.speedMulti += 0.2
+                    newPowerups = HM.remove(newPowerups, key)
                 }
 
                 // Explosions
-                for (const exp of newExplosions) {
-                    if (tile_x === exp.x && tile_y === exp.y) {
-                        // bogsh !
-                        nextPlayer.isAlive = false
+                if (newExplosions.some(e => e.x === Math.floor(nextPlayer.xCoordinate) && e.y === Math.floor(nextPlayer.yCoordinate))) {
+                    nextPlayer.isAlive = false
                         nextPlayer.deathTickDelay = model.lastTickTime
                     }
-                }
                 return nextPlayer
             }
 
@@ -270,18 +266,34 @@ export const update = (msg: Msg, model: Model): Model => {
                 powerups: newPowerups,
                 explosions: newExplosions
             }
+            
+            // DETECTED EVENTS FOR BOTS
+            const bombPlantedThisTick = false // will update inside map if bots plant, but for now we check global size change later
+            // Note: Cannot check size change easily inside map since it's immutable updates. 
+            // We pass a derived event flag: 
+            const explosionEnded = newExplosions.length < prevExplosionCount // Crude approximation but works for "an explosion ends"
 
             const nextPlayers = model.players.map(p => {
                 if (!p.isAlive) return p
 
                 // A/ Bot handling
-                if (p.is_bot) {
-                    let botPlayer = updateBotLogic(p, NewInitializedModel)
+                if (p.isBot) {
+                    // Check if bombs increased globally from start of tick (via other bots/players)
+                    // This is tricky in functional style without accumulated state.
+                    // Simplified: We assume if ANY bomb exists now that didn't before, or just pass a generic "check" 
+                    // For this step, we just pass the explosion flag. Bomb planting we handle by checking prevBombs count vs current newBombs count? 
+                    // No, newBombs is updated per player. 
+                    // We will just pass `explosionEnded` and let the bot logic handle self-awareness or just re-eval periodically.
+                    // The prompt requirement is strict, so we should try.
+                    // Let's pass `true` for bombPlanted if `HM.size(newBombs) > prevBombCount`. 
+                    const bombAdded = HM.size(newBombs) > prevBombCount 
+                    
+                    let botPlayer = updateBotLogic(p, NewInitializedModel, {bombPlanted: bombAdded, explosionEnded: explosionEnded})
                     newBombs = handleBombPlant(botPlayer, botPlayer.botShouldPlant, p.id, newBombs, newPowerups)
                     botPlayer = checkCollisions(botPlayer)
                     return {
                         ...botPlayer,
-                        bombs_active: HM.reduce(newBombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc)
+                        bombsActive: HM.reduce(newBombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc)
                     }
                     
                 }
@@ -310,26 +322,34 @@ export const update = (msg: Msg, model: Model): Model => {
                 walkPlayer = checkCollisions(walkPlayer)
                 const updatedWalkPlayer = {
                     ...walkPlayer,
-                    bombs_active: HM.reduce(newBombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc)
+                    bombsActive: HM.reduce(newBombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc)
                 }
-                return walkPlayer
+                return updatedWalkPlayer
             })
 
             // 6. WIN cONDITIONS
             let nextStatus = model.status
             const alivePlayers = nextPlayers.filter(p => p.isAlive)
+            const deadPlayers = nextPlayers.filter(p => !p.isAlive)
 
-            if (alivePlayers.length === 1) {
-                const winner = alivePlayers[0].id
-                if (winner === "P1") nextStatus = GameStatus.P1_WIN
-                if (winner === "P2") nextStatus = GameStatus.P2_WIN
-                if (winner === "P3") nextStatus = GameStatus.P3_WIN
-                if (winner === "P4") nextStatus = GameStatus.P4_WIN    
+            if (alivePlayers.length <= 1) {
+                const mostRecentDeathTime = deadPlayers.reduce((max, p) => Math.max(max, p.deathTickDelay), 0)
+                // Only switch status after 1 second delay
+                if (model.lastTickTime - mostRecentDeathTime >= FPS) {
+                    if (alivePlayers.length === 1) {
+                        const id = alivePlayers[0].id;
+                        nextStatus = id === "P1" ? GameStatus.P1_WIN : 
+                                     id === "P2" ? GameStatus.P2_WIN : 
+                                     id === "P3" ? GameStatus.P3_WIN : GameStatus.P4_WIN
+                    } else {
+                        nextStatus = GameStatus.DRAW
+                    }
+                }
             }
-            else if (alivePlayers.length === 0) {
-                nextStatus = GameStatus.DRAW
-            }
-
+                // if (winner === "P1") nextStatus = GameStatus.P1_WIN
+                // if (winner === "P2") nextStatus = GameStatus.P2_WIN
+                // if (winner === "P3") nextStatus = GameStatus.P3_WIN
+                // if (winner === "P4") nextStatus = GameStatus.P4_WIN    
             return {
                 ...model,
                 status: nextStatus,
@@ -344,10 +364,14 @@ export const update = (msg: Msg, model: Model): Model => {
                 lastTickTime: model.lastTickTime + 1,
                 debugMode: nextDebugMode
             }
-        }),
-        Match.tag("Canvas.MsgKeyDown", () => model),
-        Match.tag("Canvas.MsgMouseDown", () => model),
-        Match.tag("Restart", () => initModel),
-        Match.exhaustive
-    )
+        }
+        case "Canvas.MsgKeyDown":
+            return model
+        case "Canvas.MsgMouseDown":
+            return model
+        case "Restart":
+            return initModel
+        default:
+            return model
+    }
 }

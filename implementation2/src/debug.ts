@@ -40,7 +40,7 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
   const elements: CanvasElement[] = []
 
     players.forEach(bot => {
-        if (!bot.is_bot || !bot.isAlive) return
+        if (!bot.isBot || !bot.isAlive) return
 
         const cx = bot.xCoordinate * TILE_SIZE
         const cy = bot.yCoordinate * TILE_SIZE

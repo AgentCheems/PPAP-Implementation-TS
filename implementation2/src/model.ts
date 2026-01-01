@@ -17,6 +17,7 @@ export const BotType = S.Union(
     S.Literal("hostile"),
     S.Literal("careful"),
     S.Literal("greedy"),
+    S.Literal("extreme"),
 )
 
 export type BotState = typeof BotState.Type
@@ -65,7 +66,7 @@ export const PowerUp = S.Struct({
 export type Player = typeof Player.Type;
 export const Player = S.Struct({
     id: S.String, // mas better na itong P1. P2. P3. P4
-    is_bot: S.Boolean,  // Added for Phase 3
+    isBot: S.Boolean,  // Added for Phase 3
     // -- keep the same
     xCoordinate: S.Number,
     yCoordinate: S.Number,
@@ -79,7 +80,7 @@ export const Player = S.Struct({
     maxBombs: S.Number,
     speedMulti: S.Number,
     // AI Effects
-    botType: BotType, // gawin paba tong Struct Union nakaktamad namamn
+    botType: BotType, // gawin paba tong Struct Union nakaktamad namamn // ok na
     botState: BotState,
     botGoalX: S.Number,
     botGoalY: S.Number,
@@ -205,16 +206,10 @@ const generateGrid = (): Array<Array<Cell>> => {
     return grid;
 };
 
-export const initPlayer = (p: string, x: number, y: number, isBot: boolean = false): Player => {
-    let type: BotType = "hostile"
-    if (p=== "P3") type = "careful"
-    if (p=== "P4") type = "greedy"
-    
+export const initPlayer = (p: string, x: number, y: number, isBot: boolean = false, type: "hostile" | "careful" | "greedy" = "hostile"): Player => {
     return Player.make({
-    
-
     id: p,
-    is_bot: isBot,
+    isBot: isBot,
     xCoordinate: x,
     yCoordinate: y,
     targetX: x,
@@ -237,34 +232,32 @@ export const initPlayer = (p: string, x: number, y: number, isBot: boolean = fal
 };
 
 export const initInput = InputState.make({
-    up: false,
-    down: false,
-    left: false,
-    right: false,
-    space: false,
-    w: false,
-    s: false,
-    a: false,
-    d: false,
-    x: false,
-    escape: false
+    up: false, down: false, left: false, right: false, space: false,
+    w: false, s: false, a: false, d: false, x: false, escape: false
 });
+
+const initBot = (id: string, pos: {x: number, y: number}, type: any) =>
+    initPlayer(id, pos.x, pos.y, true, type as any)
 
 export const initModel = Model.make({
     status: GameStatus.PLAYING,
     grid: generateGrid(),
     players: [
-        //P1 Human
+        //P1 always Human
         initPlayer("P1", PLAYER_START_POSITIONS.P1.x, PLAYER_START_POSITIONS.P1.y, false),
-        //P2 Human o Bot
-        initPlayer("P2", PLAYER_START_POSITIONS.P2.x, PLAYER_START_POSITIONS.P2.y, settings.numHumanPlayers < 2),
-        //P3 Bot if need
-        ...(settings.numBots + settings.numHumanPlayers >= 3? 
-        [initPlayer("P3", PLAYER_START_POSITIONS.P3.x, PLAYER_START_POSITIONS.P3.y, true)]: []),
-        //P4
-        ...(settings.numBots + settings.numHumanPlayers >= 4? 
-        [initPlayer("P4", PLAYER_START_POSITIONS.P4.x, PLAYER_START_POSITIONS.P4.y, true)]: []),
+        ...(settings.numHumanPlayers === 1
+        ? [//If isa lang human, then P2, P3, P4 are bots
+            ...(settings.botTypes[0] ? [initBot("P2", PLAYER_START_POSITIONS.P2, settings.botTypes[0])] : []),
+            ...(settings.botTypes[1] ? [initBot("P3", PLAYER_START_POSITIONS.P3, settings.botTypes[1])] : []),
+            ...(settings.botTypes[2] ? [initBot("P4", PLAYER_START_POSITIONS.P4, settings.botTypes[2])] : []),
+        ]
+        : [// If 2 human, P3, P4 bots
 
+            initPlayer("P2", PLAYER_START_POSITIONS.P2.x, PLAYER_START_POSITIONS.P2.y, false),
+            ...(settings.botTypes[0] ? [initBot("P3", PLAYER_START_POSITIONS.P3, settings.botTypes[0])] : []),
+            ...(settings.botTypes[1] ? [initBot("P4", PLAYER_START_POSITIONS.P4, settings.botTypes[1])] : []),
+        ]
+        )
     ],
     input: initInput,
     bombs: HM.empty(),
@@ -274,7 +267,7 @@ export const initModel = Model.make({
     timeTickAcc: 0,
     lastTickTime: 0,
     gameEndTimer: -1,
-    numHumanPlayers: settings.numHumanPlayers || 1,
-    numBots: settings.numBots || 0,
+    numHumanPlayers: settings.numHumanPlayers,
+    numBots: settings.botTypes.length,
     debugMode: true
 });

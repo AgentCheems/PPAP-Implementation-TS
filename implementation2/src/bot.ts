@@ -1,336 +1,500 @@
-import { Player, Model, Cell, Bomb, ExplosionCell } from "./model"
-import { ROWS, COLS, FPS, PLAYER_SPEED, BOT_CONFIGS } from "./constants"
-import { HashMap as HM } from "effect"
+import { Model, Player, Cell, Bomb, GameStatus, BotState, PowerUp, PowerupType } from "./model";
+import { ROWS, COLS, FPS, PLAYER_SPEED, BOT_CONFIGS } from "./constants";
+import { HashMap as HM } from "effect";
 
-// --- TYPES & HELPERS ---
-type Point = { x: number; y: number }
-
-const getIntKey = (x: number, y: number) => y * COLS + x
-const getCoords = (k: number) => ({ x: k % COLS, y: Math.floor(k / COLS) })
-const getDist = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
-
-// --- DANGER ANALYSIS ---
-const getDangerMap = (
-    bombs: HM.HashMap<number, Bomb>,
-    explosions: readonly ExplosionCell[],
-    grid: readonly (readonly Cell[])[],
-    bot: Player
-): Set<number> => {
-    const danger = new Set<number>()
-    const config = BOT_CONFIGS[bot.botType]
-    const botPos = { x: Math.floor(bot.xCoordinate), y: Math.floor(bot.yCoordinate) }
-    const limitDist = config.dangerDist
-
-    const mark = (x: number, y: number) => {
-        // Optimization: Only mark danger relevant to the bot (within dangerDist + buffer)
-        if (limitDist === 0 || getDist(botPos, { x, y }) <= limitDist + 2) {
-            danger.add(getIntKey(x, y))
-        }
-    }
-
-    // 1. Current Explosions
-    for (const exp of explosions) mark(exp.x, exp.y)
-
-    // 2. Bomb Blast Zones (with Wall Checking)
-    HM.forEach(bombs, (b) => {
-        mark(b.x, b.y)
-        const dirs = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }]
-        for (const dir of dirs) {
-            for (let i = 1; i <= b.range; i++) {
-                const nx = b.x + (dir.dx * i)
-                const ny = b.y + (dir.dy * i)
-                if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) break
-                const cell = grid[ny][nx]
-                if (cell._tag === "HardBlock") break
-                mark(nx, ny)
-                if (cell._tag === "SoftBlock") break
-            }
-        }
-    })
-    return danger
+// Helper interface for simple points
+interface Point {
+    x: number;
+    y: number;
 }
 
-// --- PATHFINDING (Dijkstra) ---
-const getShortestPath = (
-    start: Point,
-    target: Point,
-    grid: readonly (readonly Cell[])[],
-    bombs: HM.HashMap<number, Bomb>,
-    explosions: readonly ExplosionCell[],
-    dangerMap: Set<number>,
-    allowDig: boolean
+// ------------------------------------------------------------------
+// HELPERS (Math & Grid)
+// ------------------------------------------------------------------
+
+// Calculate Manhattan Distance: |x1 - x2| + [cite_start]|y1 - y2| [cite: 163]
+const getDistance = (x1: number, y1: number, x2: number, y2: number): number => {
+    return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+};
+
+// Check if a coordinate is inside the grid
+const isValid = (x: number, y: number): boolean => {
+    return x >= 0 && x < COLS && y >= 0 && y < ROWS;
+};
+
+// Convert x,y to a single number for Map keys (y * Width + x)
+const getKey = (x: number, y: number): number => {
+    return y * COLS + x;
+};
+
+// ------------------------------------------------------------------
+// PATHFINDING (The Algorithm from Phase 3) [cite: 177-195]
+// ------------------------------------------------------------------
+
+// This finds the shortest path from start to goal.
+// If 'avoidSoftBlocks' is true, we treat SoftBlocks as walls (used for "Reachable" checks).
+const findShortestPath = (
+    startX: number, 
+    startY: number, 
+    goalX: number, 
+    goalY: number, 
+    model: Model,
+    avoidSoftBlocks: boolean
 ): Point[] => {
-    const startKey = getIntKey(start.x, start.y)
-    const targetKey = getIntKey(target.x, target.y)
 
-    if (startKey === targetKey) return []
+    // 1. If goal is invalid or a HardBlock, we can't go there.
+    if (!isValid(goalX, goalY)) return [];
+    
+    // Check goal cell type
+    const goalCell = model.grid[goalY][goalX];
+    if (goalCell._tag === "HardBlock") return []; 
+    // If we must avoid soft blocks, and goal is soft block, return empty
+    if (avoidSoftBlocks && goalCell._tag === "SoftBlock") return [];
 
-    const dist = new Map<number, number>()
-    const prev = new Map<number, number>()
-    const unvisited = new Set<number>()
+    // 2. Setup for BFS (Breadth-First Search)
+    // We use a Queue for cells to visit
+    let queue: Point[] = [{ x: startX, y: startY }];
+    
+    // We need to keep track of where we came from to rebuild the path
+    let cameFrom = new Map<number, number>(); // ChildKey -> ParentKey
+    
+    // Keep track of visited cells so we don't loop
+    let visited = new Set<number>();
+    visited.add(getKey(startX, startY));
 
-    for (let y = 0; y < ROWS; y++) {
-        for (let x = 0; x < COLS; x++) {
-            const k = getIntKey(x, y)
-            dist.set(k, Infinity)
-            unvisited.add(k)
-        }
-    }
-    dist.set(startKey, 0)
+    let found = false;
 
-    const activeExplosionKeys = new Set(explosions.map(e => getIntKey(e.x, e.y)))
-
-    while (unvisited.size > 0) {
-        let current = -1
-        let minDist = Infinity
-
-        for (const k of unvisited) {
-            const d = dist.get(k)!
-            if (d < minDist) {
-                minDist = d
-                current = k
-            }
-        }
-
-        if (current === -1 || minDist === Infinity || current === targetKey) break
-        unvisited.delete(current)
-        const c = getCoords(current)
-
-        const neighbors = [{ x: c.x, y: c.y - 1 }, { x: c.x, y: c.y + 1 }, { x: c.x - 1, y: c.y }, { x: c.x + 1, y: c.y }]
-
-        for (const n of neighbors) {
-            if (n.x < 0 || n.x >= COLS || n.y < 0 || n.y >= ROWS) continue
-            const nk = getIntKey(n.x, n.y)
-            if (!unvisited.has(nk)) continue
-
-            const cell = grid[n.y][n.x]
-            let weight = 1
-
-            if (cell._tag === "HardBlock" || activeExplosionKeys.has(nk)) continue
-            if (cell._tag === "SoftBlock") {
-                if (!allowDig) continue
-                weight += 10 // High penalty to prefer empty paths
-            }
-            if (HM.has(bombs, nk) && nk !== startKey) continue
-            if (dangerMap.has(nk)) weight += 25 // Severe penalty for blast zones
-
-            const alt = dist.get(current)! + weight
-            if (alt < dist.get(nk)!) {
-                dist.set(nk, alt)
-                prev.set(nk, current)
-            }
-        }
-    }
-
-    if (!prev.has(targetKey)) return []
-    const path: Point[] = []
-    let curr = targetKey
-    while (curr !== startKey) {
-        path.unshift(getCoords(curr))
-        curr = prev.get(curr)!
-    }
-    return path
-}
-
-// --- ESCAPE LOGIC (BFS) ---
-const decideEscape = (bot: Player, model: Model, dangerMap: Set<number>): Player => {
-    let nextBot = { ...bot }
-    const startNode = { x: Math.floor(bot.xCoordinate), y: Math.floor(bot.yCoordinate) }
-    const queue: { pt: Point, path: Point[] }[] = [{ pt: startNode, path: [] }]
-    const visited = new Set<number>([getIntKey(startNode.x, startNode.y)])
-
-    let bestPath: Point[] = []
-
+    // 3. Process the Queue [cite: 182-192]
     while (queue.length > 0) {
-        const { pt, path } = queue.shift()!
-        const k = getIntKey(pt.x, pt.y)
-
-        // Found a truly safe tile (No danger, no bomb, no block)
-        if (!dangerMap.has(k) && !HM.has(model.bombs, k) && model.grid[pt.y][pt.x]._tag === "Empty") {
-            bestPath = path
-            break
+        // Remove the first one (shift)
+        let current = queue.shift()!;
+        
+        // If we reached the goal, stop
+        if (current.x === goalX && current.y === goalY) {
+            found = true;
+            break;
         }
 
-        const neighbors = [{ x: pt.x, y: pt.y - 1 }, { x: pt.x, y: pt.y + 1 }, { x: pt.x - 1, y: pt.y }, { x: pt.x + 1, y: pt.y }]
-        for (const n of neighbors) {
-            if (n.x < 1 || n.x >= COLS - 1 || n.y < 1 || n.y >= ROWS - 1) continue
-            const nk = getIntKey(n.x, n.y)
-            if (visited.has(nk) || model.grid[n.y][n.x]._tag !== "Empty") continue
-            if (model.explosions.some(e => e.x === n.x && e.y === n.y)) continue
+        // Check neighbors (Up, Down, Left, Right)
+        const directions = [
+            { dx: 0, dy: -1 }, { dx: 0, dy: 1 }, 
+            { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
+        ];
 
-            visited.add(nk)
-            queue.push({ pt: n, path: [...path, n] })
-        }
-    }
+        for (let i = 0; i < directions.length; i++) {
+            let nextX = current.x + directions[i].dx;
+            let nextY = current.y + directions[i].dy;
+            let nextKey = getKey(nextX, nextY);
 
-    if (bestPath.length > 0) {
-        nextBot.botState = "escape"
-        nextBot.botPath = bestPath
-        const last = bestPath[bestPath.length - 1]
-        nextBot.botGoalX = last.x
-        nextBot.botGoalY = last.y
-    } else {
-        nextBot.botState = "wander" // Trapped!
-        nextBot.botPath = []
-    }
-    return nextBot
-}
+            // Check if valid and not visited
+            if (isValid(nextX, nextY) && !visited.has(nextKey)) {
+                let cell = model.grid[nextY][nextX];
+                
+                let isWalkable = true;
 
-// --- SAFETY CHECK ---
-const isSafeToPlant = (bot: Player, model: Model): boolean => {
-    const bx = Math.floor(bot.xCoordinate)
-    const by = Math.floor(bot.yCoordinate)
-    const simulatedBombs = HM.set(model.bombs, getIntKey(bx, by), Bomb.make({
-        id: "sim", x: bx, y: by, timer: 300, range: bot.bombRange, owner: bot.id
-    }))
+                // Hard Blocks are always walls
+                if (cell._tag === "HardBlock") {
+                    isWalkable = false;
+                } 
+                // Soft Blocks are walls only if we are "avoiding" them (Escape/Attack reachable checks)
+                else if (cell._tag === "SoftBlock" && avoidSoftBlocks) {
+                    isWalkable = false;
+                }
 
-    const danger = getDangerMap(simulatedBombs, model.explosions, model.grid, bot)
-    const queue = [{ x: bx, y: by }]
-    const visited = new Set<number>([getIntKey(bx, by)])
-
-    while (queue.length > 0) {
-        const curr = queue.shift()!
-        const k = getIntKey(curr.x, curr.y)
-        if (!danger.has(k) && !HM.has(model.bombs, k)) return true
-
-        const neighbors = [{ x: curr.x, y: curr.y - 1 }, { x: curr.x, y: curr.y + 1 }, { x: curr.x - 1, y: curr.y }, { x: curr.x + 1, y: curr.y }]
-        for (const n of neighbors) {
-            if (n.x < 1 || n.x >= COLS - 1 || n.y < 1 || n.y >= ROWS - 1) continue
-            const nk = getIntKey(n.x, n.y)
-            if (visited.has(nk) || model.grid[n.y][n.x]._tag !== "Empty") continue
-            visited.add(nk)
-            queue.push(n)
-        }
-    }
-    return false
-}
-
-// --- GOAL DECISION ---
-const decideGoal = (bot: Player, model: Model, dangerMap: Set<number>): Player => {
-    let nextBot = { ...bot }
-    const bPos = { x: Math.floor(bot.xCoordinate), y: Math.floor(bot.yCoordinate) }
-    const config = BOT_CONFIGS[bot.botType]
-    const hasAmmo = bot.bombsActive < bot.maxBombs
-
-    let goals: { pt: Point, type: any, priority: number }[] = []
-
-    // 1. Powerups
-    HM.forEach(model.powerups, (p) => goals.push({ pt: { x: p.x, y: p.y }, type: "getPowerup", priority: 3 }))
-
-    // 2. Attack Players
-    model.players.forEach(p => {
-        if (p.id !== bot.id && p.isAlive) {
-            goals.push({ pt: { x: Math.floor(p.xCoordinate), y: Math.floor(p.yCoordinate) }, type: "attack", priority: 2 })
-        }
-    })
-
-    // 3. Random Wander
-    for (let i = 0; i < 5; i++) {
-        const rx = Math.floor(Math.random() * (COLS - 2)) + 1
-        const ry = Math.floor(Math.random() * (ROWS - 2)) + 1
-        if (model.grid[ry][rx]._tag === "Empty") {
-            goals.push({ pt: { x: rx, y: ry }, type: "wander", priority: 1 })
-        }
-    }
-
-    goals.sort((a, b) => b.priority - a.priority)
-
-    for (const g of goals) {
-
-        if (dangerMap.has(getIntKey(g.pt.x, g.pt.y))) continue
-
-        if (g.type === "attack") {
-            if (getDist(bPos, g.pt) <= config.plantDist && hasAmmo && isSafeToPlant(bot, model)) {
-                nextBot.botShouldPlant = true
-                nextBot.botState = "attack"
-                return nextBot
+                if (isWalkable) {
+                    visited.add(nextKey);
+                    cameFrom.set(nextKey, getKey(current.x, current.y));
+                    queue.push({ x: nextX, y: nextY });
+                }
             }
         }
+    }
 
-        const allowDig = (bot.botType === "hostile" && hasAmmo) || (g.type === "wander" && hasAmmo)
-        const path = getShortestPath(bPos, g.pt, model.grid, model.bombs, model.explosions, dangerMap, allowDig)
+    // 4. Reconstruct the Path [cite: 193-194]
+    if (!found) {
+        return [];
+    }
 
-        if (path.length > 0) {
-            nextBot.botPath = path
-            nextBot.botState = g.type
-            nextBot.botGoalX = g.pt.x
-            nextBot.botGoalY = g.pt.y
-            return nextBot
+    // Backtrack from goal to start
+    let path: Point[] = [];
+    let currKey = getKey(goalX, goalY);
+    let startKey = getKey(startX, startY);
+
+    while (currKey !== startKey) {
+        // Decode the key back to x, y
+        let y = Math.floor(currKey / COLS);
+        let x = currKey % COLS;
+        
+        // Add to front of array
+        path.unshift({ x: x, y: y });
+
+        // Move to parent
+        let parent = cameFrom.get(currKey);
+        if (parent === undefined) break; // Should not happen if found is true
+        currKey = parent;
+    }
+
+    return path;
+};
+
+// Check if a cell is reachable (no soft blocks in the way) [cite: 234-235]
+const isReachable = (startX: number, startY: number, targetX: number, targetY: number, model: Model): boolean => {
+    let path = findShortestPath(startX, startY, targetX, targetY, model, true);
+    // It's reachable if there is a path OR we are already there
+    return path.length > 0 || (startX === targetX && startY === targetY);
+};
+
+// ------------------------------------------------------------------
+// DANGER SENSING [cite: 217-227]
+// ------------------------------------------------------------------
+
+const isCellDangerous = (x: number, y: number, model: Model, bot: Player): boolean => {
+    const config = BOT_CONFIGS[bot.botType];
+    
+    // 1. Cells in an active explosion are ALWAYS dangerous
+    for (let i = 0; i < model.explosions.length; i++) {
+        if (model.explosions[i].x === x && model.explosions[i].y === y) {
+            return true;
         }
     }
-    return nextBot
-}
 
-// --- MAIN UPDATE ---
-export const updateBotLogic = (bot: Player, model: Model): Player => {
-    let nextBot = { ...bot }
-    nextBot.botShouldPlant = false
-
-    const bx = Math.floor(bot.xCoordinate)
-    const by = Math.floor(bot.yCoordinate)
-    const dangerMap = getDangerMap(model.bombs, model.explosions, model.grid, bot)
-    const inDanger = dangerMap.has(getIntKey(bx, by))
-    const config = BOT_CONFIGS[bot.botType]
-
-    // 1. DANGER / ESCAPE
-    if (inDanger) {
-        // Only repath if we aren't already escaping or our current escape path is now dangerous
-        const needsEscapePath = nextBot.botState !== "escape" || 
-                               nextBot.botPath.length === 0 || 
-                               dangerMap.has(getIntKey(nextBot.botPath[0].x, nextBot.botPath[0].y))
-        if (needsEscapePath) {
-            nextBot = decideEscape(nextBot, model, dangerMap)
-        }
-    } 
-    // 2. NORMAL THINKING
+    // 2. Check Bombs based on bot personality
+    // "Hostile" only fears the bomb cell itself
+    if (bot.botType === "hostile") {
+        const key = getKey(x, y);
+        if (HM.has(model.bombs, key)) return true;
+    }
+    // "Careful", "Greedy", "Extreme" fear the bomb AND its explosion range
     else {
-        nextBot.botTicksSinceThink++
-        const interval = config.reevalInterval * FPS
-        const needsGoal = nextBot.botPath.length === 0 || 
-                         nextBot.botTicksSinceThink > interval ||
-                         (bx === nextBot.botGoalX && by === nextBot.botGoalY)
+        // We need to check every bomb to see if (x,y) is in its crossfire
+        let isThreatened = false;
+        
+        // Loop through all bombs in the hashmap
+        HM.forEach(model.bombs, (bomb) => {
+            if (isThreatened) return; // if already found danger, skip
 
-        if (needsGoal) {
-            nextBot = decideGoal(nextBot, model, dangerMap)
-            nextBot.botTicksSinceThink = 0
-        }
+            // Check horizontal alignment
+            if (bomb.y === y) {
+                let dist = Math.abs(bomb.x - x);
+                if (dist <= bomb.range) isThreatened = true;
+            }
+            // Check vertical alignment
+            if (bomb.x === x) {
+                let dist = Math.abs(bomb.y - y);
+                if (dist <= bomb.range) isThreatened = true;
+            }
+        });
+
+        if (isThreatened) return true;
     }
 
-    // 3. MOVEMENT (Strictly Orthogonal)
-    if (nextBot.botPath.length > 0) {
-        const next = nextBot.botPath[0]
-        const cell = model.grid[next.y][next.x]
+    return false;
+};
 
-        if (cell._tag === "SoftBlock") {
-            if (bot.bombsActive < bot.maxBombs && isSafeToPlant(bot, model)) {
-                nextBot.botShouldPlant = true
+// Check if the BOT itself is in danger right now
+const isBotInDanger = (bot: Player, model: Model): boolean => {
+    const config = BOT_CONFIGS[bot.botType];
+    const rangeToCheck = config.dangerDist; // D value
+    
+    let botX = Math.round(bot.xCoordinate);
+    let botY = Math.round(bot.yCoordinate);
+
+    // Loop through cells around the bot within distance D
+    for (let dy = -rangeToCheck; dy <= rangeToCheck; dy++) {
+        for (let dx = -rangeToCheck; dx <= rangeToCheck; dx++) {
+            let checkX = botX + dx;
+            let checkY = botY + dy;
+            
+            // Just make sure we are checking valid grid spots
+            if (isValid(checkX, checkY)) {
+                // If any cell nearby is dangerous, the bot is in danger!
+                if (isCellDangerous(checkX, checkY, model, bot)) {
+                    return true;
+                }
             }
-            // Wait here while planting/waiting for ammo
-        } else if (HM.has(model.bombs, getIntKey(next.x, next.y))) {
-            // Wait for bomb to clear
+        }
+    }
+    return false;
+};
+
+// ------------------------------------------------------------------
+// LOGIC: REEVALUATION (Making Decisions) [cite: 207-211]
+// ------------------------------------------------------------------
+
+const reevaluateState = (bot: Player, model: Model): Player => {
+    let nextBot = { ...bot };
+    let myX = Math.round(bot.xCoordinate);
+    let myY = Math.round(bot.yCoordinate);
+    
+    // 1. AM I IN DANGER? [cite_start]-> ESCAPE [cite: 208]
+    if (isBotInDanger(bot, model)) {
+        nextBot.botState = "escape";
+        // Find a safe spot
+        // Try 20 random spots to find one that is safe and reachable
+        let bestPath: Point[] = [];
+        let foundSafe = false;
+
+        for (let i = 0; i < 20; i++) {
+            let randX = Math.floor(Math.random() * COLS);
+            let randY = Math.floor(Math.random() * ROWS);
+            
+            // Must not be dangerous AND must be reachable
+            if (!isCellDangerous(randX, randY, model, bot) && isReachable(myX, myY, randX, randY, model)) {
+                // Also check if it's not a hard/soft block (just to be sure we can stand there)
+                let cell = model.grid[randY][randX];
+                if (cell._tag === "Empty") {
+                    bestPath = findShortestPath(myX, myY, randX, randY, model, true);
+                    foundSafe = true;
+                    break;
+                }
+            }
+        }
+        
+        // If we found a path, set it
+        if (foundSafe) {
+            nextBot.botPath = bestPath;
         } else {
-            const targetX = next.x + 0.5
-            const targetY = next.y + 0.5
-            const dx = targetX - nextBot.xCoordinate
-            const dy = targetY - nextBot.yCoordinate
-            const speed = PLAYER_SPEED * nextBot.speedMulti
+            // Panic: No safe spot? Just default to wander
+            nextBot.botState = "wander";
+        }
+        return nextBot;
+    }
 
-            // FIX: ORTHOGONAL MOVEMENT
-            // Prioritize aligning with one axis before moving on the other.
-            // This prevents diagonal "sliding."
-            if (Math.abs(dx) > 0.1) {
-                const moveX = Math.sign(dx) * Math.min(speed, Math.abs(dx))
-                nextBot.xCoordinate += moveX
-            } else if (Math.abs(dy) > 0.1) {
-                const moveY = Math.sign(dy) * Math.min(speed, Math.abs(dy))
-                nextBot.yCoordinate += moveY
+    // 2. SHOULD I GET A POWERUP? [cite_start]-> GET_POWERUP [cite: 209, 241-250]
+    // Decide policy based on bot type
+    let usePolicy2 = false;
+    if (bot.botType === "hostile") usePolicy2 = Math.random() < 0.20; // 20% chance
+    if (bot.botType === "careful") usePolicy2 = true; // 100% chance
+    if (bot.botType === "greedy") usePolicy2 = false; // Always Policy 1
+    
+    let targetPowerup: Point | null = null;
+    let allPowerups: Point[] = [];
+    HM.forEach(model.powerups, (p) => allPowerups.push({ x: p.x, y: p.y }));
+
+    if (allPowerups.length > 0) {
+        if (!usePolicy2) {
+            // Policy 1: Closest one
+            let minLen = 9999;
+            for (let i = 0; i < allPowerups.length; i++) {
+                let p = allPowerups[i];
+                let path = findShortestPath(myX, myY, p.x, p.y, model, false);
+                if (path.length > 0 && path.length < minLen) {
+                    minLen = path.length;
+                    targetPowerup = p;
+                }
             }
-
-            // If close enough to target center, consume path node
-            if (Math.abs(nextBot.xCoordinate - targetX) < 0.1 && Math.abs(nextBot.yCoordinate - targetY) < 0.1) {
-                nextBot.botPath = nextBot.botPath.slice(1)
+        } else {
+            // Policy 2: Random one within 4 cells & reachable
+            let nearby = allPowerups.filter(p => 
+                getDistance(myX, myY, p.x, p.y) <= 4 && isReachable(myX, myY, p.x, p.y, model)
+            );
+            if (nearby.length > 0) {
+                targetPowerup = nearby[Math.floor(Math.random() * nearby.length)];
             }
         }
     }
-    return nextBot
-}
+
+    if (targetPowerup) {
+        nextBot.botState = "getPowerup";
+        nextBot.botPath = findShortestPath(myX, myY, targetPowerup.x, targetPowerup.y, model, false);
+        return nextBot;
+    }
+
+    // 3. SHOULD I ATTACK? [cite_start]-> ATTACK [cite: 210, 257-264]
+    // Decide policy
+    let useAttackPolicy2 = false;
+    if (bot.botType === "hostile") useAttackPolicy2 = true; // Policy 2
+    if (bot.botType === "careful") useAttackPolicy2 = false; // Policy 1
+    if (bot.botType === "greedy") useAttackPolicy2 = false; // Policy 1
+
+    let attackRange = 100; // Unlimited for Hostile usually
+    if (bot.botType === "careful") attackRange = 3;
+    if (bot.botType === "greedy") attackRange = 6;
+
+    let targetEnemy: Player | null = null;
+    let enemies = model.players.filter(p => p.id !== bot.id && p.isAlive);
+
+    if (enemies.length > 0) {
+        if (!useAttackPolicy2) {
+            // Policy 1: Reachable within Range A
+            for (let i = 0; i < enemies.length; i++) {
+                let e = enemies[i];
+                let ex = Math.round(e.xCoordinate);
+                let ey = Math.round(e.yCoordinate);
+                
+                if (getDistance(myX, myY, ex, ey) <= attackRange) {
+                    // Check reachable (no soft blocks)
+                    if (isReachable(myX, myY, ex, ey, model)) {
+                        targetEnemy = e;
+                        break; // Just take the first one found
+                    }
+                }
+            }
+        } else {
+            // Policy 2: Random enemy
+            targetEnemy = enemies[Math.floor(Math.random() * enemies.length)];
+        }
+    }
+
+    if (targetEnemy) {
+        nextBot.botState = "attack";
+        nextBot.botGoalX = Math.round(targetEnemy.xCoordinate);
+        nextBot.botGoalY = Math.round(targetEnemy.yCoordinate);
+        // Calculate path
+        // Careful/Greedy (Policy 1) need "safe" path (no soft blocks)
+        // Hostile (Policy 2) uses standard path
+        let avoidSoft = !useAttackPolicy2; 
+        nextBot.botPath = findShortestPath(myX, myY, nextBot.botGoalX, nextBot.botGoalY, model, avoidSoft);
+        return nextBot;
+    }
+
+    // 4. OTHERWISE -> WANDER [cite: 211]
+    nextBot.botState = "wander";
+    // Pick random goal
+    for(let i=0; i<10; i++) {
+        let rx = Math.floor(Math.random() * COLS);
+        let ry = Math.floor(Math.random() * ROWS);
+        // Must not be hard block
+        if (model.grid[ry][rx]._tag !== "HardBlock") {
+            let path = findShortestPath(myX, myY, rx, ry, model, false);
+            if (path.length > 0) {
+                nextBot.botPath = path;
+                break;
+            }
+        }
+    }
+    return nextBot;
+};
+
+// ------------------------------------------------------------------
+// MAIN BOT UPDATE FUNCTION
+// ------------------------------------------------------------------
+
+export const updateBotLogic = (
+    bot: Player, 
+    model: Model, 
+    events: { bombPlanted: boolean, explosionEnded: boolean }
+): Player => {
+    let nextBot = { ...bot };
+    let myX = Math.round(bot.xCoordinate);
+    let myY = Math.round(bot.yCoordinate);
+
+    // ------------------------------------
+    // 1. CHECK IF WE NEED TO RE-THINK [cite: 212-216]
+    // ------------------------------------
+    
+    // Decrement timer
+    nextBot.botTicksSinceThink -= 1;
+    let shouldThink = false;
+
+    // A. Event Triggers
+    if (events.explosionEnded) shouldThink = true;
+    
+    // If a bomb was planted nearby (within 5 cells), we should think
+    if (events.bombPlanted) {
+        let bombClose = false;
+        // We scan bombs to see if any is new/close. 
+        // Simplification: Just check if *any* bomb is close right now.
+        HM.forEach(model.bombs, (b) => {
+            if (getDistance(myX, myY, b.x, b.y) <= 5) {
+                bombClose = true;
+            }
+        });
+        if (bombClose) shouldThink = true;
+    }
+
+    // B. Periodic Timer Trigger
+    if (nextBot.botTicksSinceThink <= 0) {
+        const config = BOT_CONFIGS[bot.botType];
+        // Reset timer (Convert seconds to frames)
+        nextBot.botTicksSinceThink = config.reevalInterval * FPS;
+        
+        // Random Chance check
+        if (Math.random() < config.reevalChance) {
+            shouldThink = true;
+        }
+    }
+
+    // Do the thinking if needed
+    if (shouldThink) {
+        nextBot = reevaluateState(nextBot, model);
+        // Update local vars after change
+        myX = Math.round(nextBot.xCoordinate);
+        myY = Math.round(nextBot.yCoordinate);
+    }
+
+    // ------------------------------------
+    // 2. EXECUTE MOVEMENT (Walk the Path)
+    // ------------------------------------
+    
+    let targetX = nextBot.xCoordinate;
+    let targetY = nextBot.yCoordinate;
+    let shouldPlant = false;
+
+    // Special Logic for Attack: Update path to enemy if they moved
+    if (nextBot.botState === "attack") {
+        // Recalculate path to target's current position (Policy 2 logic mostly)
+        if (bot.botType === "hostile") {
+             nextBot.botPath = findShortestPath(myX, myY, nextBot.botGoalX, nextBot.botGoalY, model, false);
+        }
+        
+        // Check if we should plant bomb (Attack logic)
+        // If hostile: plant if next cell is soft block
+        if (bot.botType === "hostile" && nextBot.botPath.length > 0) {
+            let next = nextBot.botPath[0];
+            if (model.grid[next.y][next.x]._tag === "SoftBlock") {
+                 shouldPlant = true;
+            }
+        }
+        
+        // Always plant if close to target [cite: 275]
+        const config = BOT_CONFIGS[bot.botType];
+        if (getDistance(myX, myY, nextBot.botGoalX, nextBot.botGoalY) <= config.plantDist) {
+            shouldPlant = true;
+        }
+    }
+
+    // Special Logic for Wander: Plant if soft block in way [cite: 205]
+    if (nextBot.botState === "wander" && nextBot.botPath.length > 0) {
+        let next = nextBot.botPath[0];
+        if (model.grid[next.y][next.x]._tag === "SoftBlock") {
+             shouldPlant = true;
+        }
+    }
+
+    // MOVE ALONG PATH
+    if (nextBot.botPath.length > 0) {
+        let nextStep = nextBot.botPath[0];
+        let moveSpeed = PLAYER_SPEED * nextBot.speedMulti;
+
+        // Simple movement toward center of next cell
+        if (Math.abs(nextBot.xCoordinate - nextStep.x) > 0.1) {
+            if (nextBot.xCoordinate < nextStep.x) targetX += moveSpeed;
+            else targetX -= moveSpeed;
+        } else if (Math.abs(nextBot.yCoordinate - nextStep.y) > 0.1) {
+            if (nextBot.yCoordinate < nextStep.y) targetY += moveSpeed;
+            else targetY -= moveSpeed;
+        } else {
+            // We arrived at the cell center!
+            // Remove this step from the path
+            // We use Array.slice to remove the first element (simpler than shift for immutability but shift works too)
+            let newPath = [...nextBot.botPath];
+            newPath.shift();
+            nextBot.botPath = newPath;
+        }
+    } else {
+        // Path finished? Go back to wander next tick
+        if (nextBot.botState !== "wander") {
+             // Let the re-eval handle it next tick, or force it now. 
+             // We'll just leave it, the periodic check will catch it or we can force idle.
+        }
+    }
+
+    // Update the bot's intended inputs for the game engine
+    return {
+        ...nextBot,
+        targetX: targetX,
+        targetY: targetY,
+        botShouldPlant: shouldPlant
+    };
+};

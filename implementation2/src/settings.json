@@ -1,9 +1,10 @@
 {
-  "softBlockChance": 70,
-  "powerupChance": 30,
+  "softBlockChance": 40,
+  "powerupChance": 10,
   "gameDuration": 120,
   "numHumanPlayers": 1,
-  "numBots": 3,
-  "botPlantChance": 15,
-  "botMoveChance": 30
+  // "numBots": 3,
+  // "botPlantChance": 15,
+  // "botMoveChance": 30
+  "botTypes": ["cautious", "extreme", "extreme"]
 }

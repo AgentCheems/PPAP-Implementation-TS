@@ -161,8 +161,6 @@ export const view = (model: Model): CanvasElement[] => {
 
     if (model.debugMode) elements.push(...getDebugElements(model.players))
 
-
-
     // renderPlayer(model.player1, "./assets/p1_sprite.png", "P1");
     // renderPlayer(model.player2, "./assets/p2_sprite.png", "P2");
     
