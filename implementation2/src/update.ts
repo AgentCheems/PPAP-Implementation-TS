@@ -1,377 +1,332 @@
 
-
-import { Model, Bomb, Cell, GameStatus, Empty, HardBlock, SoftBlock,
-ExplosionCell, Player, PowerUp, PowerupType, InputState, 
-initModel} from "./model"
-import { ROWS, COLS, TILE_SIZE, FPS, PLAYER_RADIUS,
-    PLAYER_SPEED, BOMB_TIMER_SECONDS, EXPLOSION_DURATION_SECONDS,
-    EXPLOSION_RANGE, GAME_DURATION_SECONDS, PLAYER_START_POSITIONS
-} from "./constants"
+import { Model, Bomb, Cell, GameStatus, Empty, Player, PowerUp, PowerupType, InputState, initModel } from "./model"
+import { ROWS, COLS, FPS, PLAYER_SPEED, BOMB_TIMER_SECONDS, EXPLOSION_DURATION_SECONDS } from "./constants"
 import settings from "./settings.json"
 import { Msg } from "./message"
 import { HashMap as HM, Array as A, Option } from "effect"
 import { getInputKey } from "./input"
-import { updateBotLogic } from "./bot"
+import { updateBot, BotIntent } from "./bot"
 
-const getIntKey = (x: number, y: number) => y * COLS + x
+// ------------------------------------------------------------------
+// HELPERS
+// ------------------------------------------------------------------
+const getIntKey = (x: number, y: number) => y * COLS + x;
 
-const triggerExplosion = (
-    bomb: Bomb,
-    grid: readonly (readonly Cell[])[],
-    currentBombs: HM.HashMap<number, Bomb>,
-    currentPowerups: HM.HashMap<number, PowerUp>
-): {
-    newExplosion: ExplosionCell[],
-    hitBombs: number[],
-    brokenSoftBlocks: {x: number, y: number}[],
-    destroyedPowerups: number[]
-} => {
-    const newExplosion: ExplosionCell[] = []
-    const hitBombs: number[] = []
-    const brokenSoftBlocks: {x: number, y: number}[] = []
-    const destroyedPowerups: number[] = []
-
-    newExplosion.push({x: bomb.x, y: bomb.y, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
-
-    const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}]
-
-    for (const dir of dirs) {
-        for (let i = 1; i <= bomb.range; i++) {
-            const tx = bomb.x + (dir.dx * i)
-            const ty = bomb.y + (dir.dy * i)
-            if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) break
-
-            const cell = grid[ty][tx]
-            if (cell._tag === "HardBlock") break
-
-            if (cell._tag === "SoftBlock") {
-                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
-                brokenSoftBlocks.push({x: tx, y: ty})
-                break
-            }
-
-            const bombKey = getIntKey(tx, ty)
-            if (HM.has(currentBombs, bombKey)) {
-                hitBombs.push(bombKey)
-                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
-                break
-            }
-            if (HM.has(currentPowerups, bombKey)) {
-                destroyedPowerups.push(bombKey)
-            }
-            newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
-        }
-    }
-    return { newExplosion, hitBombs, brokenSoftBlocks, destroyedPowerups }
+const isTileBlocked = (grid: Cell[][], bombs: HM.HashMap<number, Bomb>, tx: number, ty: number): boolean => {
+    // 1. Boundary Check
+    if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return true;
+    
+    // 2. Block Check
+    const cell = grid[ty][tx];
+    if (cell._tag === "HardBlock" || cell._tag === "SoftBlock") return true;
+    
+    // 3. Bomb Check
+    // We check if the TARGET tile has a bomb.
+    if (HM.has(bombs, getIntKey(tx, ty))) return true;
+    
+    return false;
 }
 
-const isTileBlocked = (grid: readonly (readonly Cell[])[], bombs:
-    HM.HashMap<number, Bomb>, tile_x: number, tile_y: number): boolean => {
-    if (tile_x < 0 || tile_x > COLS - 1 || tile_y < 0 || tile_y > ROWS - 1)
-        return true
-    const cell = grid[tile_y][tile_x]
-    if (cell._tag === "HardBlock" || cell._tag === "SoftBlock") return true
-    // cannot walk thru bombs (unless bagong lapag lang)
-    if (HM.has(bombs, getIntKey(tile_x, tile_y))) return true
-    return false
-}
+// ------------------------------------------------------------------
+// UNIFIED PHYSICS
+// ------------------------------------------------------------------
 
-const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs:
-    HM.HashMap<number, Bomb>): Player => {
-    const isMoving = Math.abs(player.xCoordinate - player.targetX) > 0.05 ||
-        Math.abs(player.yCoordinate - player.targetY) > 0.05
+/**
+ * Attempts to move a player based on direction delta.
+ * Handles interpolation (smooth movement) and collision detection.
+ */
+const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs: HM.HashMap<number, Bomb>): Player => {
+    // 1. Interpolation / Existing Movement
+    const isMoving = Math.abs(player.xCoordinate - player.targetX)  || 
+                     Math.abs(player.yCoordinate - player.targetY) ;
+
     if (isMoving) {
-        let nextPlayer = {...player}
-        const speed = PLAYER_SPEED * player.speedMulti
+        const next = { ...player };
+        const speed = PLAYER_SPEED * player.speedMulti;
+        
         // Move X
-        if (nextPlayer.xCoordinate < nextPlayer.targetX) {
-            nextPlayer.xCoordinate = Math.min(nextPlayer.xCoordinate + speed, nextPlayer.targetX)
-        } else if (nextPlayer.xCoordinate > nextPlayer.targetX) {
-            nextPlayer.xCoordinate = Math.max(nextPlayer.xCoordinate - speed, nextPlayer.targetX)
+        if (Math.abs(next.xCoordinate - next.targetX) <= speed) {
+            next.xCoordinate = next.targetX; // Snap to target
+        } else {
+            if (next.xCoordinate < next.targetX) next.xCoordinate += speed;
+            else next.xCoordinate -= speed;
         }
+        
         // Move Y
-        if (nextPlayer.yCoordinate < nextPlayer.targetY) {
-            nextPlayer.yCoordinate = Math.min(nextPlayer.yCoordinate + speed, nextPlayer.targetY)
-        } else if (nextPlayer.yCoordinate > nextPlayer.targetY) {
-            nextPlayer.yCoordinate = Math.max(nextPlayer.yCoordinate - speed, nextPlayer.targetY)
+        if (Math.abs(next.yCoordinate - next.targetY) <= speed) {
+            next.yCoordinate = next.targetY; // Snap to target
+        } else {
+            if (next.yCoordinate < next.targetY) next.yCoordinate += speed;
+            else next.yCoordinate -= speed;
         }
-        return nextPlayer
+        
+        return next;
     }
 
-    if (dx == 0 && dy == 0) return player
+    // 2. New Move Initiation
+    // Snap position to exact target before calculating next move to prevent drift
+    const snappedPlayer = { 
+        ...player, 
+        xCoordinate: player.targetX, 
+        yCoordinate: player.targetY 
+    };
 
-    const targetX = player.targetX + dx
-    const targetY = player.targetY + dy
+    if (dx === 0 && dy === 0) return snappedPlayer; // No movement requested
 
-    if (!isTileBlocked(grid, bombs, Math.floor(targetX), Math.floor(targetY))) {
+    // Convert float coordinate (center of tile) to integer grid index
+    // e.g., 1.5 -> floor(1.5) = 1.
+    const currentTileX = Math.floor(snappedPlayer.xCoordinate);
+    const currentTileY = Math.floor(snappedPlayer.yCoordinate);
+
+    const targetTileX = currentTileX + dx;
+    const targetTileY = currentTileY + dy;
+
+    // Check collision for the target tile
+    if (!isTileBlocked(grid, bombs, targetTileX, targetTileY)) {
+        // Path is clear, set new target to the CENTER of the target tile
+        // e.g. Tile 2 -> 2.5
         return {
-            ...player,
-            targetX: targetX,
-            targetY: targetY
-        }
+            ...snappedPlayer,
+            targetX: targetTileX + 0.5,
+            targetY: targetTileY + 0.5
+        };
     }
-    return player
+
+    // Blocked
+    return snappedPlayer;
 }
 
-const handleBombPlant = (p: Player, planted: boolean, owner: string, bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>): HM.HashMap<number, Bomb> => {
-    if (planted && p.isAlive) {
-        const bx = Math.floor(p.xCoordinate)
-        const by = Math.floor(p.yCoordinate)
-        const k = getIntKey(bx, by)
-        const activeCount = HM.reduce(bombs, 0, (acc, bomb) =>
-            bomb.owner === owner ? acc + 1 : acc)
+const handleBombPlant = (p: Player, wantsPlant: boolean, bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>): HM.HashMap<number, Bomb> => {
+    if (wantsPlant && p.isAlive) {
+        // Use Math.floor to get the tile index the player is currently STANDING ON
+        const bx = Math.floor(p.xCoordinate); 
+        const by = Math.floor(p.yCoordinate);
+        const k = getIntKey(bx, by);
+        
+        // Count active bombs for this player
+        const activeCount = HM.reduce(bombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc);
+        
+        // Check limits and vacancy
         if (activeCount < p.maxBombs && !HM.has(bombs, k) && !HM.has(powerups, k)) {
             return HM.set(bombs, k, Bomb.make({
-                id: `${owner}_${Date.now()}`,
+                id: `${p.id}_${Date.now()}`,
                 x: bx,
                 y: by,
                 timer: BOMB_TIMER_SECONDS * FPS,
                 range: p.bombRange,
-                owner: owner
-            }))
+                owner: p.id
+            }));
         }
     }
-    return bombs
+    return bombs;
 }
+
+const triggerExplosion = (bomb: Bomb, grid: Cell[][], bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>) => {
+    const newExplosion = [{x: bomb.x, y: bomb.y, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner }];
+    const hitBombs: number[] = [];
+    const brokenSoftBlocks: {x: number, y: number}[] = [];
+    const destroyedPowerups: number[] = [];
+
+    const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}];
+
+    for (const dir of dirs) {
+        for (let i = 1; i <= bomb.range; i++) {
+            const tx = bomb.x + (dir.dx * i);
+            const ty = bomb.y + (dir.dy * i);
+            
+            if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) break;
+            
+            const cell = grid[ty][tx];
+            if (cell._tag === "HardBlock") break;
+
+            if (cell._tag === "SoftBlock") {
+                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner });
+                brokenSoftBlocks.push({x: tx, y: ty});
+                break; // Explosion stops at soft block
+            }
+
+            const k = getIntKey(tx, ty);
+            if (HM.has(bombs, k)) {
+                hitBombs.push(k);
+                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner });
+                break; // Explosion stops at bomb (but triggers it)
+            }
+            if (HM.has(powerups, k)) destroyedPowerups.push(k);
+            
+            newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner });
+        }
+    }
+    return { newExplosion, hitBombs, brokenSoftBlocks, destroyedPowerups };
+}
+
+// ------------------------------------------------------------------
+// MAIN UPDATE LOOP
+// ------------------------------------------------------------------
 
 export const update = (msg: Msg, model: Model): Model => {
     switch ((msg as any)._tag) {
         case "Canvas.MsgTick": {
-            if (model.status !== GameStatus.PLAYING) return model
+            if (model.status !== GameStatus.PLAYING) return model;
 
-            const keyInput = getInputKey()
-            const newKeyInput = InputState.make(keyInput)
-            const p1_planted = keyInput.space && !model.input.space
-            const p2_planted = keyInput.x && !model.input.x
-            const debugToggled = keyInput.escape && !model.input.escape
-            const nextDebugMode = debugToggled ? !model.debugMode : model.debugMode
+            const inputs = InputState.make(getInputKey());
+            const debugToggled = inputs.escape && !model.input.escape;
+            const nextDebug = debugToggled ? !model.debugMode : model.debugMode;
 
-            // 1. TIMER
-            let newTimeLeft = model.timeLeft 
-            const newTickAcc = model.timeTickAcc + 1 // increments the counter every single frame
-            if (newTickAcc % FPS === 0) { // checks for remainder (30%30 === 0, 60%30 === 0)
-                newTimeLeft = Math.max(0, newTimeLeft - 1) // so if 30 frames has passed, 1 second has passed
-            }
-            if (newTimeLeft === 0) {
-                return { ...model, status: GameStatus.DRAW, timeLeft: 0, input: newKeyInput, debugMode: nextDebugMode}
-            }
+            // 1. GAME TIMER
+            let timeLeft = model.timeLeft;
+            const tickAcc = model.timeTickAcc + 1;
+            if (tickAcc % FPS === 0) timeLeft = Math.max(0, timeLeft - 1);
+            if (timeLeft === 0) return { ...model, status: GameStatus.DRAW, timeLeft: 0, input: inputs, debugMode: nextDebug };
 
-            // 2. STATE COPIES
-            let newGrid = [...model.grid.map(row => [...row])]
-            let newPowerups = model.powerups
-            let newExplosions = [...model.explosions]
-            let newBombs = model.bombs
+            // 2. STATE SNAPSHOTS
+            let grid = model.grid.map(row => [...row]);
+            let powerups = model.powerups;
+            let explosions = [...model.explosions];
+            let bombs = model.bombs;
             
-            // DETECT EVENTS FOR BOT RE-EVALUATION
-            const prevBombCount = HM.size(model.bombs)
-            const prevExplosionCount = model.explosions.length
+            const prevBombCount = HM.size(bombs);
+            const prevExpCount = explosions.length;
+
+            // 3. EXPLOSION & BOMB TIMERS
+            explosions = explosions.map(e => ({...e, timer: e.timer-1})).filter(e => e.timer > 0);
             
-            // 3. MANAGE ENTITY TIMERS
-            // a. decrease explosion timers
-            newExplosions = newExplosions
-            .map(exp => ({...exp, timer: exp.timer - 1}))
-            .filter(exp => exp.timer > 0)
-            
-            // b. decrease bomb timers
-            const bombsToExplode: number[] = []
-            newBombs = HM.map(newBombs, (bomb) => ({
-                ...bomb,
-                timer: bomb.timer - 1
-            }))
-            
-            HM.forEach(newBombs, (bomb, key) => {
-                if (bomb.timer <= 0) {
-                    bombsToExplode.push(key)
-                }
-            })
-            
-            // 4. HANDLING BOMB CHAIN REACTIONS
-            const processingQueue = [...bombsToExplode]
-            const processedBombs = new Set<number>()
-    
-            while (processingQueue.length > 0) {
-                const key = processingQueue.shift()!
-                if (processedBombs.has(key)) continue
-                processedBombs.add(key)
-    
-                const b = HM.get(newBombs, key)
-                if (Option.isNone(b)) continue
-                const bombData = b.value
+            const toExplode: number[] = [];
+            bombs = HM.map(bombs, b => ({...b, timer: b.timer-1}));
+            HM.forEach(bombs, (b, k) => { if (b.timer <= 0) toExplode.push(k); });
+
+            // 4. CHAIN REACTIONS
+            const queue = [...toExplode];
+            const processed = new Set<number>();
+            while (queue.length > 0) {
+                const k = queue.shift()!;
+                if (processed.has(k)) continue;
+                processed.add(k);
+
+                const b = HM.get(bombs, k);
+                if (Option.isNone(b)) continue;
+
+                const res = triggerExplosion(b.value, grid, bombs, powerups);
+                explosions.push(...res.newExplosion);
                 
-                const result = triggerExplosion(bombData, newGrid, newBombs, newPowerups)
-                newExplosions.push(...result.newExplosion)
-                
-                result.destroyedPowerups.forEach(pow => {newPowerups = HM.remove(newPowerups, pow)})  
-                result.brokenSoftBlocks.forEach(pos => { 
-                    newGrid[pos.y][pos.x] = Empty.make({})
-                    // pag nakasira ng softblock, spawn powerup
-                    
-                    if ((Math.random() * 100) < settings.powerupChance) {
-                        const prob = Math.random()
-                        let type = PowerupType.SpeedUp
-                        if (prob < 0.33) {
-                            type = PowerupType.FireUp
-                        }
-                        else if (prob < 0.66) {
-                            type = PowerupType.BombUp
-                        }
-                        const k = getIntKey(pos.x, pos.y)
-                        newPowerups = HM.set(newPowerups, k, PowerUp.make({
-                            type: type,
-                            x: pos.x,
-                            y: pos.y
-                        }))
+                res.destroyedPowerups.forEach(p => powerups = HM.remove(powerups, p));
+                res.brokenSoftBlocks.forEach(p => {
+                    grid[p.y][p.x] = Empty.make({});
+                    if (Math.random() * 100 < settings.powerupChance) {
+                        const rnd = Math.random();
+                        let type = rnd < 0.33 ? PowerupType.FireUp : (rnd < 0.66 ? PowerupType.BombUp : PowerupType.SpeedUp);
+                        powerups = HM.set(powerups, getIntKey(p.x, p.y), PowerUp.make({type, x: p.x, y: p.y}));
                     }
-                })
-                // chain reaction pag nakahit ng di pa nageexplode na bomb
-                result.hitBombs.forEach(k => {if (!processedBombs.has(k)) processingQueue.push(k)})
-                // remove bombs sa hashmap once exploded
-                newBombs = HM.remove(newBombs, key)
+                });
+                res.hitBombs.forEach(bk => { if(!processed.has(bk)) queue.push(bk); });
+                bombs = HM.remove(bombs, k);
             }
 
-            // COLLISION CHECKING
-            const checkCollisions = (player: Player): Player => {
-                if (!player.isAlive) return player
-                let nextPlayer = { ...player }
-                const cx = nextPlayer.xCoordinate
-                const cy = nextPlayer.yCoordinate
-                const tile_x = Math.floor(cx)
-                const tile_y = Math.floor(cy)
+            const bombAdded = HM.size(bombs) > prevBombCount;
+            const expEnded = explosions.length < prevExpCount;
 
-                const key = getIntKey(tile_x, tile_y)
-                const pu = HM.get(newPowerups, key)
-                if (Option.isSome(pu)) {
-                    if (pu.value.type === PowerupType.BombUp)
-                        nextPlayer.maxBombs += 1
-                    if (pu.value.type === PowerupType.FireUp)
-                        nextPlayer.bombRange += 1
-                    if (pu.value.type === PowerupType.SpeedUp)
-                        nextPlayer.speedMulti += 0.2
-                    newPowerups = HM.remove(newPowerups, key)
-                }
-
-                // Explosions
-                if (newExplosions.some(e => e.x === Math.floor(nextPlayer.xCoordinate) && e.y === Math.floor(nextPlayer.yCoordinate))) {
-                    nextPlayer.isAlive = false
-                        nextPlayer.deathTickDelay = model.lastTickTime
-                    }
-                return nextPlayer
-            }
-
-            // 5. UPDATE PLAYERS
-            const NewInitializedModel: Model = {
-                ...model,
-                grid: newGrid,
-                bombs: newBombs,
-                powerups: newPowerups,
-                explosions: newExplosions
-            }
-            
-            // DETECTED EVENTS FOR BOTS
-            const bombPlantedThisTick = false // will update inside map if bots plant, but for now we check global size change later
-            // Note: Cannot check size change easily inside map since it's immutable updates. 
-            // We pass a derived event flag: 
-            const explosionEnded = newExplosions.length < prevExplosionCount // Crude approximation but works for "an explosion ends"
-
+            // 5. PLAYER LOOP (Unified)
             const nextPlayers = model.players.map(p => {
-                if (!p.isAlive) return p
+                if (!p.isAlive) return p;
 
-                // A/ Bot handling
-                if (p.isBot) {
-                    // Check if bombs increased globally from start of tick (via other bots/players)
-                    // This is tricky in functional style without accumulated state.
-                    // Simplified: We assume if ANY bomb exists now that didn't before, or just pass a generic "check" 
-                    // For this step, we just pass the explosion flag. Bomb planting we handle by checking prevBombs count vs current newBombs count? 
-                    // No, newBombs is updated per player. 
-                    // We will just pass `explosionEnded` and let the bot logic handle self-awareness or just re-eval periodically.
-                    // The prompt requirement is strict, so we should try.
-                    // Let's pass `true` for bombPlanted if `HM.size(newBombs) > prevBombCount`. 
-                    const bombAdded = HM.size(newBombs) > prevBombCount 
-                    
-                    let botPlayer = updateBotLogic(p, NewInitializedModel, {bombPlanted: bombAdded, explosionEnded: explosionEnded})
-                    newBombs = handleBombPlant(botPlayer, botPlayer.botShouldPlant, p.id, newBombs, newPowerups)
-                    botPlayer = checkCollisions(botPlayer)
-                    return {
-                        ...botPlayer,
-                        bombsActive: HM.reduce(newBombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc)
-                    }
-                    
-                }
+                let nextP = { ...p };
+                let intent: BotIntent = { dx: 0, dy: 0, plant: false };
 
-                // B. Human Hnadling\
-                let dx = 0, dy = 0, plant = false
-                // P1
-                if (p.id === "P1") {
-                    if (newKeyInput.up) dy = -1
-                    else if (newKeyInput.down) dy = 1
-                    else if (newKeyInput.left) dx = -1
-                    else if (newKeyInput.right) dx = 1
-                    if (p1_planted) plant = true
-                }
-                // P2
-                else if (p.id === "P2") {
-                    if (newKeyInput.w) dy = -1
-                    else if (newKeyInput.s) dy = 1
-                    else if (newKeyInput.a) dx = -1
-                    else if (newKeyInput.d) dx = 1
-                    if (p2_planted) plant = true
-                }
-            
-                let walkPlayer = tryWalk(p, dx, dy, newGrid, newBombs)
-                newBombs = handleBombPlant(walkPlayer, plant, p.id, newBombs, newPowerups)
-                walkPlayer = checkCollisions(walkPlayer)
-                const updatedWalkPlayer = {
-                    ...walkPlayer,
-                    bombsActive: HM.reduce(newBombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc)
-                }
-                return updatedWalkPlayer
-            })
+                // A. GATHER INTENT
+                const isMoving = Math.abs(nextP.xCoordinate - nextP.targetX) > 0.05 || 
+                                 Math.abs(nextP.yCoordinate - nextP.targetY) > 0.05;
 
-            // 6. WIN cONDITIONS
-            let nextStatus = model.status
-            const alivePlayers = nextPlayers.filter(p => p.isAlive)
-            const deadPlayers = nextPlayers.filter(p => !p.isAlive)
-
-            if (alivePlayers.length <= 1) {
-                const mostRecentDeathTime = deadPlayers.reduce((max, p) => Math.max(max, p.deathTickDelay), 0)
-                // Only switch status after 1 second delay
-                if (model.lastTickTime - mostRecentDeathTime >= FPS) {
-                    if (alivePlayers.length === 1) {
-                        const id = alivePlayers[0].id;
-                        nextStatus = id === "P1" ? GameStatus.P1_WIN : 
-                                     id === "P2" ? GameStatus.P2_WIN : 
-                                     id === "P3" ? GameStatus.P3_WIN : GameStatus.P4_WIN
+                // Optimization: Only think/input if we are ready to move
+                if (!isMoving) {
+                    if (p.isBot) {
+                        // AI LOGIC
+                        const res = updateBot(nextP, model, { bombPlanted: bombAdded, explosionEnded: expEnded });
+                        nextP = res.player; // Update internal bot state
+                        intent = res.intent; // Get movement desire
                     } else {
-                        nextStatus = GameStatus.DRAW
+                        // HUMAN INPUT
+                        if (p.id === "P1") {
+                            if (inputs.up) intent.dy = -1; else if (inputs.down) intent.dy = 1;
+                            else if (inputs.left) intent.dx = -1; else if (inputs.right) intent.dx = 1;
+                            intent.plant = inputs.space && !model.input.space;
+                        } else if (p.id === "P2") {
+                            if (inputs.w) intent.dy = -1; else if (inputs.s) intent.dy = 1;
+                            else if (inputs.a) intent.dx = -1; else if (inputs.d) intent.dx = 1;
+                            intent.plant = inputs.x && !model.input.x;
+                        }
+                    }
+                }
+
+                // B. EXECUTE PHYSICS
+                let walkedPlayer = tryWalk(nextP, intent.dx, intent.dy, grid, bombs);
+
+                // C. ACTIONS (Planting)
+                bombs = handleBombPlant(walkedPlayer, intent.plant, bombs, powerups);
+
+                // D. COLLISIONS (Powerups & Explosions)
+                // Use Math.floor to identify the tile the player is currently occupying
+                let updatedPlayer = { ...walkedPlayer };
+                const playerTileX = Math.floor(updatedPlayer.xCoordinate);
+                const playerTileY = Math.floor(updatedPlayer.yCoordinate);
+                
+                const k = getIntKey(playerTileX, playerTileY);
+                
+                const pu = HM.get(powerups, k);
+                if (Option.isSome(pu)) {
+                    if (pu.value.type === PowerupType.BombUp) {
+                        updatedPlayer = { ...updatedPlayer, maxBombs: updatedPlayer.maxBombs + 1 };
+                    }
+                    else if (pu.value.type === PowerupType.FireUp) {
+                        updatedPlayer = { ...updatedPlayer, bombRange: updatedPlayer.bombRange + 1 };
+                    }
+                    else if (pu.value.type === PowerupType.SpeedUp) {
+                        updatedPlayer = { ...updatedPlayer, speedMulti: updatedPlayer.speedMulti + 0.2 };
+                    }
+                    powerups = HM.remove(powerups, k);
+                }
+
+                if (explosions.some(e => e.x === playerTileX && e.y === playerTileY)) {
+                    updatedPlayer = { ...updatedPlayer, isAlive: false, deathTickDelay: model.lastTickTime };
+                }
+                
+                // Update stats
+                return { 
+                    ...updatedPlayer, 
+                    bombsActive: HM.reduce(bombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc) 
+                };
+            });
+
+            // 6. CHECK WIN CONDITION
+            let nextStatus = model.status;
+            const alive = nextPlayers.filter(p => p.isAlive);
+            const dead = nextPlayers.filter(p => !p.isAlive);
+            
+            if (alive.length <= 1) {
+                const lastDeath = dead.reduce((max, p) => Math.max(max, p.deathTickDelay), 0);
+                if (model.lastTickTime - lastDeath >= FPS) {
+                    if (alive.length === 1) {
+                        const id = alive[0].id;
+                        nextStatus = id==="P1"?GameStatus.P1_WIN : id==="P2"?GameStatus.P2_WIN : id==="P3"?GameStatus.P3_WIN : GameStatus.P4_WIN;
+                    } else {
+                        nextStatus = GameStatus.DRAW;
                     }
                 }
             }
-                // if (winner === "P1") nextStatus = GameStatus.P1_WIN
-                // if (winner === "P2") nextStatus = GameStatus.P2_WIN
-                // if (winner === "P3") nextStatus = GameStatus.P3_WIN
-                // if (winner === "P4") nextStatus = GameStatus.P4_WIN    
+
             return {
                 ...model,
                 status: nextStatus,
-                grid: newGrid,
-                bombs: newBombs,
-                powerups: newPowerups,
-                explosions: newExplosions,
+                grid, bombs, powerups, explosions,
                 players: nextPlayers,
-                input: newKeyInput,
-                timeTickAcc: newTickAcc >= FPS ? 0 : newTickAcc,
-                timeLeft: newTimeLeft,
+                input: inputs,
+                timeTickAcc: tickAcc >= FPS ? 0 : tickAcc,
+                timeLeft,
                 lastTickTime: model.lastTickTime + 1,
-                debugMode: nextDebugMode
-            }
+                debugMode: nextDebug
+            };
         }
-        case "Canvas.MsgKeyDown":
-            return model
-        case "Canvas.MsgMouseDown":
-            return model
-        case "Restart":
-            return initModel
-        default:
-            return model
+        case "Canvas.MsgKeyDown": return model;
+        case "Canvas.MsgMouseDown": return model;
+        case "Restart": return initModel;
+        default: return model;
     }
 }
