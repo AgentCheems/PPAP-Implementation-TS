@@ -1,160 +1,180 @@
-import { Model, Player, Cell, Bomb, PowerUp, BotState } from "./model";
-import { COLS, ROWS, BOT_CONFIGS, BotConfig, FPS } from "./constants";
-import { HashMap as HM, Option } from "effect";
+import { Model, Player, Cell, Bomb, PowerUp, BotState } from "./model"
+import { COLS, ROWS, BOT_CONFIGS, BotConfig, FPS } from "./constants"
+import { HashMap as HM, Option} from "effect"
 
 export interface BotIntent {
-    dx: number;
-    dy: number;
-    plant: boolean;
+    dx: number
+    dy: number
+    plant: boolean
 }
 
 export interface BotUpdateResult {
-    player: Player;
-    intent: BotIntent;
+    player: Player
+    intent: BotIntent
 }
 
 interface Point {
-    x: number;
-    y: number;
+    x: number
+    y: number
 }
 
 // --- UTILITIES ---
-
-const getIntKey = (x: number, y: number) => y * COLS + x;
-
-const getManhattanDist = (x1: number, y1: number, x2: number, y2: number) => Math.abs(x1 - x2) + Math.abs(y1 - y2);
-
-const isValid = (x: number, y: number) => x >= 0 && x < COLS && y >= 0 && y < ROWS;
-
+// changes every tile into a single number integer
+const getIntKey = (x: number, y: number) => y * COLS + x
+// cant walk diagonally, so we use formula  distance: |x1 - x2| + |y1 - y2|.
+const getManhattanDist = (x1: number, y1: number, x2: number, y2: number) => Math.abs(x1 - x2) + Math.abs(y1 - y2)
+// checker
+const isValid = (x: number, y: number) => x >= 0 && x < COLS && y >= 0 && y < ROWS
+// is this tile allowed? is it hard or soft, if soft blow it up, or escape
 const isWalkable = (grid: readonly (readonly Cell[])[], x: number, y: number, allowSoft: boolean): boolean => {
-    if (!isValid(x, y)) return false;
-    const cell = grid[y][x];
-    if (cell._tag === "HardBlock") return false;
-    if (!allowSoft && cell._tag === "SoftBlock") return false;
-    return true;
+    if (!isValid(x, y)) return false
+    const cell = grid[y][x]
+    if (cell._tag === "HardBlock") return false
+    if (!allowSoft && cell._tag === "SoftBlock") return false
+    return true
 };
 
-// --- PATHFINDING (BFS) ---
-
+// --- PATHFINDING (Dijkstra / Shortest Path Spec Implementation) ---
+// copied from https://ondras.github.io/rot.js/manual/#path hahahaha
 /**
- * Computes shortest path from (sx, sy) to (tx, ty).
- * @param allowSoft If true, path can go through SoftBlocks (Wander/Attack). If false, strict reachable path (Escape/Powerup).
- * @param dangerKeys Set of integer keys representing dangerous cells to avoid (Bombs, Explosions).
+ * find the shortest path from (sx, sy) to (tx, ty)
+ * Uses explicit distance tracking and edge relaxation (C+1 < S).
+ * allowSoft If true, path can go through SoftBlocks (Wander/Attack).
+ * dangerKeys Set of integer keys representing dangerous cells to avoid.
  */
 const findPath = (
-    sx: number, sy: number, 
+    sx: number, sy: number,
     tx: number, ty: number, 
     grid: readonly (readonly Cell[])[], 
     allowSoft: boolean,
     dangerKeys: Set<number> | null = null
 ): Point[] | null => {
-    if (sx === tx && sy === ty) return [];
+    if (sx === tx && sy === ty) return []
     
-    // Queue for BFS: [Current Point]
-    const queue: Point[] = [{x: sx, y: sy}];
-    // Map to reconstruct path: Child Key -> Parent Key
-    const cameFrom = new Map<number, number>();
-    const visited = new Set<number>();
+    const startKey = getIntKey(sx, sy)
+    const targetKey = getIntKey(tx, ty)
+
+    // 1. Assign the distance +∞ for all cells; assign 0 for the starting cell
+    // We use a Map or sparse array to represent the grid distances. 
+    // Missing key implies +∞.
+    const dist = new Map<number, number>(); // para syang cost of each tile, starting at 0 up to infiinty
+    dist.set(startKey, 0)
+
+    // 2. Assign the "source cell" (parent) of each cell to be nothing
+    const cameFrom = new Map<number, number>(); // lets say papunta tayo tile B, galing A, we write a map  B -> A
+
+    // 3. Create a set of unvisited cells (managed as a Queue for the frontier)
+    // Add the starting cell to the set
+    const queue: Point[] = [{x: sx, y: sy}]
     
-    const startKey = getIntKey(sx, sy);
-    visited.add(startKey);
+    // Neighbor order: Up, Down, Left, Right
+    const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}]
 
-    // Neighbor order: Up, Down, Left, Right (Tie-breaking handled by order)
-    const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
-
-    let head = 0;
+    // 4. While the set of unvisited cells is nonempty
+    let head = 0
     while (head < queue.length) {
-        const current = queue[head++];
-        
-        // Target Found?
-        if (current.x === tx && current.y === ty) {
-            const path: Point[] = [];
-            let currKey = getIntKey(tx, ty);
-            while (currKey !== startKey) {
-                const px = currKey % COLS;
-                const py = Math.floor(currKey / COLS);
-                path.unshift({x: px, y: py});
-                currKey = cameFrom.get(currKey)!;
+        // Remove the cell with the smallest assigned distance (FIFO queue preserves order in unweighted grid)
+        const current = queue[head++]
+        const currentKey = getIntKey(current.x, current.y)
+        const currentDist = dist.get(currentKey)!
+
+        // If the current cell is the target cell, terminate
+        if (currentKey === targetKey) {
+            const path: Point[] = []
+            let currKey = targetKey
+            while (currKey !== startKey) { // pag nahit natin ung target
+                const px = currKey % COLS
+                const py = Math.floor(currKey / COLS)
+                path.unshift({x: px, y: py})
+                currKey = cameFrom.get(currKey)! // web build hat path
             }
-            return path;
+            return path
         }
 
-        // Explore Neighbors
+        // For each unvisited, walkable neighboring cell
         for (const d of dirs) {
-            const nx = current.x + d.x;
-            const ny = current.y + d.y;
-            const nKey = getIntKey(nx, ny);
+            const nx = current.x + d.x
+            const ny = current.y + d.y
+            const nKey = getIntKey(nx, ny)
 
-            if (!visited.has(nKey)) {
-                // Check walkability
-                if (isWalkable(grid, nx, ny, allowSoft)) {
-                    // Check danger/blockers
-                    if (dangerKeys && dangerKeys.has(nKey)) continue;
+            if (isWalkable(grid, nx, ny, allowSoft)) {
+                // Check external danger constraints (bombs/explosions)
+                if (dangerKeys && dangerKeys.has(nKey)) continue;
 
-                    visited.add(nKey);
-                    cameFrom.set(nKey, getIntKey(current.x, current.y));
-                    queue.push({x: nx, y: ny});
+                // Let C be assigned distance of current cell (currentDist)
+                // Let S be assigned distance of neighboring cell (neighborDist)
+                const neighborDist = dist.has(nKey) ? dist.get(nKey)! : Infinity
+
+                // If C + 1 is less than S
+                if (currentDist + 1 < neighborDist) { // is the distance to this neighbor shorter  if i go to this tile?
+                    // Update the assigned distance of neighboring cell
+                    dist.set(nKey, currentDist + 1)
+                    
+                    // Set the "source cell" to current cell
+                    cameFrom.set(nKey, currentKey)
+                    
+                    // Add the selected cell to the set of unvisited cells
+                    queue.push({x: nx, y: ny})
                 }
             }
         }
     }
-    return null; // No path found
+    return null // No path found
 };
 
 // --- DANGER SENSING ---
 
 const getDangerousCells = (model: Model, bot: Player, config: BotConfig): Set<number> => {
-    const danger = new Set<number>();
+    const danger = new Set<number>()
 
     // 1. Existing Explosions are ALWAYS dangerous
-    model.explosions.forEach(e => danger.add(getIntKey(e.x, e.y)));
+    model.explosions.forEach(e => danger.add(getIntKey(e.x, e.y)))
 
     // 2. Bombs
     if (config.dangerType === "bomb_only") {
         // Hostile: Only cells with bombs are dangerous
         HM.forEach(model.bombs, (b) => {
-            danger.add(getIntKey(b.x, b.y));
+            danger.add(getIntKey(b.x, b.y))
         });
     } else {
         // Careful/Greedy/Extreme: Cells with bombs OR cells that will be caught in explosion
         HM.forEach(model.bombs, (b) => {
-            danger.add(getIntKey(b.x, b.y));
+            danger.add(getIntKey(b.x, b.y))
             
-            const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}];
+            const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}]
             for (const d of dirs) {
                 for (let i = 1; i <= b.range; i++) {
-                    const tx = b.x + (d.dx * i);
-                    const ty = b.y + (d.dy * i);
+                    const tx = b.x + (d.dx * i)
+                    const ty = b.y + (d.dy * i)
                     
                     if (!isValid(tx, ty)) break;
-                    if (model.grid[ty][tx]._tag === "HardBlock") break;
+                    if (model.grid[ty][tx]._tag === "HardBlock") break
                     
-                    danger.add(getIntKey(tx, ty));
+                    danger.add(getIntKey(tx, ty))
                     
-                    if (model.grid[ty][tx]._tag === "SoftBlock") break; 
+                    if (model.grid[ty][tx]._tag === "SoftBlock") break
                 }
             }
-        });
+        })
     }
 
-    return danger;
+    return danger
 };
 
 const isInDanger = (bx: number, by: number, dangerCells: Set<number>, dist: number): boolean => {
-    // A bot considers itself to be in danger if there is ANY cell within distance D that is dangerous.
-    for (let dy = -dist; dy <= dist; dy++) {
-        for (let dx = -dist; dx <= dist; dx++) {
+    for (let dy = -dist; dy <= dist; dy++) { // check up check down
+        for (let dx = -dist; dx <= dist; dx++) { // check left check right
             if (Math.abs(dx) + Math.abs(dy) <= dist) {
-                const tx = bx + dx;
-                const ty = by + dy;
+                const tx = bx + dx
+                const ty = by + dy
                 if (isValid(tx, ty) && dangerCells.has(getIntKey(tx, ty))) {
-                    return true;
+                    return true // scan around if dangerous then true 
                 }
             }
         }
     }
-    return false;
-};
+    return false
+}
 
 // --- REEVALUATION LOGIC ---
 
@@ -170,81 +190,96 @@ const reevaluate = (
 
     // 1. DANGER -> ESCAPE (Highest Priority)
     if (isInDanger(bx, by, dangerCells, config.dangerDist)) {
-        nextBot.botState = "escape";
+        nextBot.botState = "escape"
         
-        // Choose random goal cell that is REACHABLE (no soft blocks) and NOT DANGEROUS
-        const safeCandidates: Point[] = [];
-        const queue: Point[] = [{x: bx, y: by}];
-        const visited = new Set<number>([getIntKey(bx, by)]);
-        // If current cell is safe, it's a candidate
-        if (!dangerCells.has(getIntKey(bx, by))) safeCandidates.push({x: bx, y: by});
+        // Find safe reachable cell
+        const safeCandidates: Point[] = []
 
-        const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
+        // Use local Dijkstra flood for safe cells
+        const dist = new Map<number, number>()
+        dist.set(getIntKey(bx, by), 0)
+
+        // Use Dijkstra flood to find reachable safe cells
+        // Note: Using the same algorithm structure manually here for flood fill
+        const queue: Point[] = [{x: bx, y: by}]
+        if (!dangerCells.has(getIntKey(bx, by))) safeCandidates.push({x: bx, y: by})
+
+        const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}]
+        let head = 0
         
-        let head = 0;
-        // Limit search to reasonable area to avoid full grid scan lag
-        while (head < queue.length && head < 100) {
-            const curr = queue[head++];
+        while (head < queue.length){ //&& head < 100) {
+            const curr = queue[head++]
+            const currentKey = getIntKey(curr.x, curr.y)
+            const currentDist = dist.get(currentKey)!
+
             for (const d of dirs) {
-                const nx = curr.x + d.x;
-                const ny = curr.y + d.y;
-                const k = getIntKey(nx, ny);
-                if (!visited.has(k) && isWalkable(model.grid, nx, ny, false)) {
-                    visited.add(k);
-                    queue.push({x: nx, y: ny});
-                    // Safe means NOT in dangerCells
-                    // Note: unsafeCells are typically subset of dangerCells, so if we avoid dangerCells we avoid bombs/explosions
-                    if (!dangerCells.has(k)) {
-                        safeCandidates.push({x: nx, y: ny});
-                    }
+                const nx = curr.x + d.x
+                const ny = curr.y + d.y
+                const nKey = getIntKey(nx, ny)
+                
+                // Escape can only walk on empty cells (false)
+                if (isWalkable(model.grid, nx, ny, false)) {
+                     const neighborDist = dist.has(nKey) ? dist.get(nKey)! : Infinity
+                     
+                     // Relaxation
+                     if (currentDist + 1 < neighborDist) {
+                        dist.set(nKey, currentDist + 1)
+                        queue.push({x: nx, y: ny})
+                        
+                        // Check safety for candidate list
+                        if (!dangerCells.has(nKey)) {
+                            safeCandidates.push({x: nx, y: ny})
+                        }
+                     }
                 }
             }
         }
 
         if (safeCandidates.length > 0) {
-            const target = safeCandidates[Math.floor(Math.random() * safeCandidates.length)];
-            nextBot.botGoalX = target.x;
-            nextBot.botGoalY = target.y;
-            
-            // FIX: Use immediate danger (active bombs + explosions) as blocking obstacles.
-            // This allows the bot to pathfind *out* of a danger zone if it is currently inside one.
-            nextBot.botPath = findPath(bx, by, target.x, target.y, model.grid, false, unsafeCells) || [];
+            const target = safeCandidates[Math.floor(Math.random() * safeCandidates.length)]
+            nextBot.botGoalX = target.x
+            nextBot.botGoalY = target.y
+            nextBot.botPath = findPath(bx, by, target.x, target.y, model.grid, false, unsafeCells) || []
         } else {
-            // Trapped
-            nextBot.botState = "wander";
+            nextBot.botState = "wander" // Trapped
         }
-        return nextBot;
+        return nextBot
     }
 
-    // 2. ATTACK -> ATTACK (Priority upgraded from 3rd to 2nd)
-    // Kill the enemy before getting powerups if safe to do so.
-    let targetId: string | null = null;
-    let targetDest: Point | null = null;
-
+    // 2. ATTACK -> ATTACK (Aggressive Priority)
+    let targetId: string | null = null
+    let targetDest: Point | null = null
+    const enemies: Player[] = []
+        for (let i = 0; i < model.players.length; i++) {
+            const p = model.players[i]
+            if (p.id !== bot.id && p.isAlive) {
+                enemies.push(p)
+            }
+        }
     if (config.attackPolicy === 1) {
-        // Policy 1: Reachable player within A cells. Closest.
-        const enemies = model.players.filter(p => p.id !== bot.id && p.isAlive);
-        let minLen = Infinity;
+        // Policy 1: find closest enemy we can actually reach
+        
+        let minLen = Infinity
 
         for (const enemy of enemies) {
-            const ex = Math.floor(enemy.xCoordinate);
-            const ey = Math.floor(enemy.yCoordinate);
+            const ex = Math.floor(enemy.xCoordinate)
+            const ey = Math.floor(enemy.yCoordinate)
             if (getManhattanDist(bx, by, ex, ey) <= config.attackReachDist) {
-                // Check reachability (allowSoft = false). Avoid Unsafe Cells.
-                const path = findPath(bx, by, ex, ey, model.grid, false, unsafeCells);
+                // Must be reachable
+                const path = findPath(bx, by, ex, ey, model.grid, false, unsafeCells)
                 if (path && path.length < minLen) {
-                    minLen = path.length;
-                    targetId = enemy.id;
-                    targetDest = {x: ex, y: ey};
+                    minLen = path.length
+                    targetId = enemy.id
+                    targetDest = {x: ex, y: ey}
                 }
             }
         }
     } else {
-        // Policy 2: Random player.
-        const enemies = model.players.filter(p => p.id !== bot.id && p.isAlive);
+        // Policy 2: randomizer
         if (enemies.length > 0) {
-            const enemy = enemies[Math.floor(Math.random() * enemies.length)];
-            targetId = enemy.id;
+            const randomizer = Math.floor(Math.random() * enemies.length)
+            const enemy = enemies[randomizer]
+            targetId = enemy.id
             targetDest = {x: Math.floor(enemy.xCoordinate), y: Math.floor(enemy.yCoordinate)};
         }
     }
@@ -259,40 +294,53 @@ const reevaluate = (
         return nextBot;
     }
 
-    // 3. POWERUP -> GET_POWERUP (Priority downgraded from 2nd to 3rd)
+    // 3. POWERUP -> GET_POWERUP (Lower Priority)
     if (Math.random() * 100 < config.powerupChance) {
         let bestPu: Point | null = null;
 
         if (config.powerupPolicy === 1) {
-            // Policy 1: Closest Powerup (BFS flood)
+            // jakstra
+            const dist = new Map<number, number>();
+            dist.set(getIntKey(bx, by), 0);
+            
             const queue: Point[] = [{x: bx, y: by}];
-            const visited = new Set<number>([getIntKey(bx, by)]);
             const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}];
             let head = 0;
+            
             while(head < queue.length) {
                 const curr = queue[head++];
-                if (HM.has(model.powerups, getIntKey(curr.x, curr.y))) {
+                const currentKey = getIntKey(curr.x, curr.y);
+                const currentDist = dist.get(currentKey)!;
+
+                if (HM.has(model.powerups, currentKey)) {
                     bestPu = curr;
                     break;
                 }
+
                 for (const d of dirs) {
                     const nx = curr.x + d.x;
                     const ny = curr.y + d.y;
-                    const k = getIntKey(nx, ny);
-                    // Policy 1: allowSoft=true. Avoid Unsafe Cells.
-                    if (!visited.has(k) && isWalkable(model.grid, nx, ny, true)) { 
-                        if (unsafeCells.has(k)) continue;
-                        visited.add(k);
-                        queue.push({x: nx, y: ny});
+                    const nKey = getIntKey(nx, ny);
+                    
+                    // Powerup search allows soft blocks (true)
+                    if (isWalkable(model.grid, nx, ny, true)) { 
+                        if (unsafeCells.has(nKey)) continue;
+                        
+                        const neighborDist = dist.has(nKey) ? dist.get(nKey)! : Infinity;
+                        
+                        // Relaxation
+                        if (currentDist + 1 < neighborDist) {
+                             dist.set(nKey, currentDist + 1);
+                             queue.push({x: nx, y: ny});
+                        }
                     }
                 }
             }
         } else {
-            // Policy 2: Random Reachable within 4 cells
+            // Random near
             const candidates: Point[] = [];
             HM.forEach(model.powerups, (pu) => {
                 if (getManhattanDist(bx, by, pu.x, pu.y) <= 4) {
-                    // Must be REACHABLE (allowSoft = false). Avoid Unsafe Cells.
                     const path = findPath(bx, by, pu.x, pu.y, model.grid, false, unsafeCells);
                     if (path) candidates.push({x: pu.x, y: pu.y});
                 }
@@ -306,14 +354,14 @@ const reevaluate = (
             nextBot.botState = "getPowerup";
             nextBot.botGoalX = bestPu.x;
             nextBot.botGoalY = bestPu.y;
-            const allowSoft = config.powerupPolicy === 1;
+            const allowSoft = config.powerupPolicy === 1; // we break blocks for powerups
             nextBot.botPath = findPath(bx, by, bestPu.x, bestPu.y, model.grid, allowSoft, unsafeCells) || [];
             return nextBot;
         }
     }
 
     // 4. WANDER
-    nextBot.botState = "wander";
+    nextBot.botState = "wander"; // wala lang, maglakad ka
     return nextBot;
 };
 
@@ -326,12 +374,10 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
     
     // Config
     const config = BOT_CONFIGS[bot.botType] || BOT_CONFIGS["hostile"];
-    
-    // IMPORTANT: Use floor to match physics engine's tile logic.
     const bx = Math.floor(bot.xCoordinate);
     const by = Math.floor(bot.yCoordinate);
 
-    // Prepare Unsafe Cells (Bombs + Explosions) for Pathfinding/Safety
+    // Unsafe Cells
     const unsafeCells = new Set<number>();
     HM.forEach(model.bombs, (b) => {
         unsafeCells.add(getIntKey(b.x, b.y));
@@ -340,12 +386,11 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
         unsafeCells.add(getIntKey(e.x, e.y));
     });
 
-    // 1. REEVALUATION CHECK
+    // 1. REEVALUATION CHECK // run djikastra only when
     nextBot.botTicksSinceThink += 1;
     const secondsSinceThink = nextBot.botTicksSinceThink / FPS;
-    
-    const timerTrigger = secondsSinceThink >= config.reevalInterval && (Math.random() * 100 < config.reevalChance);
-    const eventTrigger = events.bombPlanted || events.explosionEnded;
+    const timerTrigger = secondsSinceThink >= config.reevalInterval && (Math.random() * 100 < config.reevalChance); //wait for time
+    const eventTrigger = events.bombPlanted || events.explosionEnded; // wait for event like bombs
 
     if (timerTrigger || eventTrigger) {
         nextBot.botTicksSinceThink = 0;
@@ -358,16 +403,13 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
 
     if (state === "wander") {
         const distToGoal = getManhattanDist(bx, by, nextBot.botGoalX, nextBot.botGoalY);
-        // If arrived or no path, pick new random goal
         if (distToGoal === 0 || nextBot.botPath.length === 0) {
             let found = false;
             let attempts = 0;
             while (!found && attempts < 20) {
                 const rx = Math.floor(Math.random() * COLS);
                 const ry = Math.floor(Math.random() * ROWS);
-                // Valid goal: Not HardBlock, Not Unsafe
                 if (model.grid[ry][rx]._tag !== "HardBlock" && !unsafeCells.has(getIntKey(rx, ry))) {
-                    // Wander allows soft blocks. Avoid Unsafe Cells.
                     const path = findPath(bx, by, rx, ry, model.grid, true, unsafeCells); 
                     if (path && path.length > 0) {
                         nextBot.botGoalX = rx;
@@ -381,7 +423,6 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
         }
     }
     else if (state === "attack") {
-        // Update target position if using Policy 2 (Chase)
         if (config.attackPolicy === 2) {
             const target = model.players.find(p => p.id === nextBot.botAttackTargetId);
             if (target && target.isAlive) {
@@ -390,27 +431,19 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
                 if (tx !== nextBot.botGoalX || ty !== nextBot.botGoalY || nextBot.botPath.length === 0) {
                     nextBot.botGoalX = tx;
                     nextBot.botGoalY = ty;
-                    // Chase: Allow soft blocks. Avoid Unsafe Cells.
                     nextBot.botPath = findPath(bx, by, tx, ty, model.grid, true, unsafeCells) || [];
                 }
             } else {
-                nextBot.botState = "wander"; // Target dead/gone
+                nextBot.botState = "wander";
             }
         } else {
-            // Policy 1 (Careful/Greedy): Static path to last known location.
-            // If path ends (reached destination), revert to wander so we don't freeze.
             if (nextBot.botPath.length === 0) {
                 nextBot.botState = "wander";
             }
         }
     }
-    else if (state === "escape") {
+    else if (state === "escape" || state === "getPowerup") {
         if (bx === nextBot.botGoalX && by === nextBot.botGoalY) {
-            nextBot.botState = "wander";
-        }
-    }
-    else if (state === "getPowerup") {
-         if (bx === nextBot.botGoalX && by === nextBot.botGoalY) {
             nextBot.botState = "wander";
         }
     }
@@ -418,20 +451,12 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
     // 3. MOVEMENT EXECUTION
     if (nextBot.botPath.length > 0) {
         const nextStep = nextBot.botPath[0];
-
-        // If we are at the next step, remove it from path
         if (nextStep.x === bx && nextStep.y === by) {
-            // Immutable removal
             nextBot.botPath = nextBot.botPath.slice(1);
-            
-            // Proceed to next
             if (nextBot.botPath.length > 0) {
                  const step = nextBot.botPath[0];
                  const cell = model.grid[step.y][step.x];
-                 
-                 // PHASING FIX
                  if (cell._tag === "SoftBlock") {
-                     // Blocked by SoftBlock, wait for plant/explode
                      if (!unsafeCells.has(getIntKey(bx, by))) intent.plant = true;
                      intent.dx = 0; 
                      intent.dy = 0;
@@ -441,12 +466,9 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
                  }
             }
         } else {
-            // Move towards nextStep
              const cell = model.grid[nextStep.y][nextStep.x];
-             if (cell._tag === "SoftBlock") {
-                 // Blocked, must plant
-                 if (!unsafeCells.has(getIntKey(bx, by))) intent.plant = true;
-                 
+             if (cell._tag === "SoftBlock") { // pag nastuck ako sa softblock, stop moving, plant a fkung bomb
+                 if (!unsafeCells.has(getIntKey(bx, by))) intent.plant = true
                  intent.dx = 0; 
                  intent.dy = 0;
              } else {
@@ -456,10 +478,9 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
         }
     }
 
-    // 4. OFFENSIVE PLANTING LOGIC (Killer Instinct)
-    // If not in danger, check if we should be aggressive
+    // 4. OFFENSIVE PLANTING (Phase 4 Logic)
+    // Killer Instinct: If near enemy, drop bomb even if not blocked.
     if (!unsafeCells.has(getIntKey(bx, by))) {
-        
         let closestDist = Infinity;
         model.players.forEach(p => {
             if (p.id !== bot.id && p.isAlive) {
@@ -469,10 +490,9 @@ export const updateBot = (bot: Player, model: Model, events: { bombPlanted: bool
         });
 
         const isAggressive = nextBot.botState === "attack";
-        const isCrowded = closestDist <= 2; // Enemy is right next to us
+        const isCrowded = closestDist <= 2; 
 
-        // If we are chasing (attack) and close enough, OR just crowded
-        if ((isAggressive && closestDist <= config.plantRange) || isCrowded) {
+        if ((isAggressive && closestDist <= 1) || isCrowded) {
             intent.plant = true;
         }
     }
