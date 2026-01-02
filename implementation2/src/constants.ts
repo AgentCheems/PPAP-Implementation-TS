@@ -1,5 +1,3 @@
-
-
 export const TILE_SIZE = 40;
 export const ROWS = 13;
 export const COLS = 15;
@@ -37,8 +35,6 @@ export interface BotConfig {
   // Used for "Within X cells" checks in descriptions, effectively same as R usually, but keeping separate if logic differs. 
   // PDF says "Attempts to plant bombs if target player is within X cells". 
   // We will use 'plantRange' for the specific R value mentioned in ATTACK state "Regardless of policy".
-  // And 'engageDist' for the "Attempts to plant bombs if within X cells" in Config description.
-  engageDist: number; 
   
   // Policies
   attackPolicy: 1 | 2;
@@ -50,55 +46,36 @@ export interface BotConfig {
 
 export const BOT_CONFIGS: Record<string, BotConfig> = {
   hostile: { 
-    reevalInterval: 0.5, 
-    reevalChance: 25, 
-    dangerDist: 0,
-    dangerType: "bomb_only",
-    engageDist: 2, 
-    plantRange: 2, // From "within R cells"
-    attackPolicy: 2,
-    attackReachDist: 0, // N/A for Policy 2
-    powerupPolicy: 2,
-    powerupChance: 20
+    reevalInterval: 0.5, reevalChance: 25, 
+    dangerDist: 0, dangerType: "bomb_only",
+    plantRange: 2, 
+    attackPolicy: 2, attackReachDist: 0, 
+    powerupPolicy: 2, powerupChance: 20
   },
   careful: { 
-    reevalInterval: 0.25, 
-    reevalChance: 100, 
-    dangerDist: 4,
-    dangerType: "future_explosion",
-    engageDist: 4,
+    reevalInterval: 0.25, reevalChance: 100, 
+    dangerDist: 4, dangerType: "future_explosion",
     plantRange: 4,
-    attackPolicy: 1,
-    attackReachDist: 3, // Reachable within 3 cells
-    powerupPolicy: 2,
-    powerupChance: 100
+    attackPolicy: 1, attackReachDist: 3, 
+    powerupPolicy: 2, powerupChance: 100
   },
   greedy: { 
-    reevalInterval: 1.0, 
-    reevalChance: 100, 
-    dangerDist: 2,
-    dangerType: "future_explosion",
-    engageDist: 3,
+    reevalInterval: 1.0, reevalChance: 100, 
+    dangerDist: 2, dangerType: "future_explosion",
     plantRange: 3,
-    attackPolicy: 1,
-    attackReachDist: 6,
-    powerupPolicy: 1,
-    powerupChance: 100
+    attackPolicy: 1, attackReachDist: 6,
+    powerupPolicy: 1, powerupChance: 100
   },
   extreme: { 
-    reevalInterval: 0.1, 
-    reevalChance: 10, 
-    dangerDist: 10,
-    dangerType: "future_explosion",
-    engageDist: 10,
+    reevalInterval: 0.1, reevalChance: 10, 
+    dangerDist: 10, dangerType: "future_explosion",
     plantRange: 10,
-    attackPolicy: 2,
-    attackReachDist: 10,
-    powerupPolicy: 1,
-    powerupChance: 100
+    attackPolicy: 2, attackReachDist: 10,
+    powerupPolicy: 1, powerupChance: 100
   }
 };
 
+// --- VISUALS ---
 export const COLORS = {
     BG: "#228822",
     HARD_BLOCK: "#333333",
