@@ -1,15 +1,14 @@
 
 import { Schema as S, HashMap as HM, Array as A } from "effect";
-import { ROWS, COLS, PLAYER_START_POSITIONS } from "./constants";
+import { ROWS, COLS, PLAYER_START_POSITIONS, FPS } from "./constants";
 import settings from "./settings.json";
 
 // GAME-STATE Handling
 export enum GameStatus {
     PLAYING,
-    P1_WIN,
-    P2_WIN,
-    P3_WIN,
-    P4_WIN,
+    ROUND_START,
+    ROUND_END,
+    GAME_OVER,
     DRAW
 }
 
@@ -37,7 +36,9 @@ export const InputState = S.Struct({
     escape: S.Boolean
 });
 
-export enum PowerupType { FireUp, BombUp, SpeedUp }
+export enum PowerupType { FireUp, BombUp, SpeedUp,
+    // Rainbow
+ }
 
 // POWERUPS
 export type PowerUp = typeof PowerUp.Type;
@@ -67,6 +68,8 @@ export const Player = S.Struct({
     maxBombs: S.Number,
     speedMulti: S.Number,
     
+    // Bonus Powerup here (Part 2)
+
     // AI State (Phase 4)
     botType: BotType,
     botState: BotState,
@@ -74,7 +77,9 @@ export const Player = S.Struct({
     botGoalY: S.Number,
     botPath: S.Array(S.Struct({ x: S.Number, y: S.Number })),
     botTicksSinceThink: S.Number,
-    botAttackTargetId: S.String
+    botAttackTargetId: S.String,
+    // Score Tracking (Phase 5)
+    roundWins: S.Number
 });
 
 // GRID CELL
@@ -118,6 +123,11 @@ export const Model = S.Struct({
     timeLeft: S.Number,
     timeTickAcc: S.Number,
     lastTickTime: S.Number,
+    //
+    roundStartTimer: S.Number,
+    roundWinner: S.String,
+    winsToWin: S.Number,
+    //
     numHumanPlayers: S.Number,
     numBots: S.Number,
     debugMode: S.Boolean
@@ -126,7 +136,7 @@ export type Model = typeof Model.Type;
 
 // --- INITIALIZATION ---
 
-const generateGrid = (): Array<Array<Cell>> => {
+export const generateGrid = (): Array<Array<Cell>> => {
     const grid: Cell[][] = [];
     const isSafe = (x: number, y: number) => {
         // Corners and adjacents
@@ -180,7 +190,8 @@ export const initPlayer = (id: string, x: number, y: number, isBot: boolean, bot
         botGoalY: y,
         botPath: [],
         botTicksSinceThink: 0,
-        botAttackTargetId: ""
+        botAttackTargetId: "",
+        roundWins: 0
     });
 };
 
@@ -190,7 +201,7 @@ export const initInput = InputState.make({
 });
 
 export const initModel = Model.make({
-    status: GameStatus.PLAYING,
+    status: GameStatus.ROUND_START,
     grid: generateGrid(),
     players: [
         initPlayer("P1", PLAYER_START_POSITIONS.P1.x, PLAYER_START_POSITIONS.P1.y, false),
@@ -214,7 +225,10 @@ export const initModel = Model.make({
     timeLeft: settings.gameDuration,
     timeTickAcc: 0,
     lastTickTime: 0,
+    roundStartTimer: 3* FPS,
+    roundWinner: "",
+    winsToWin: settings.winsToWin,
     numHumanPlayers: settings.numHumanPlayers,
     numBots: settings.botTypes.length,
-    debugMode: true
+    debugMode: false
 });
