@@ -71,6 +71,7 @@ export const Player = S.Struct({
     
     isAlive: S.Boolean,
     deathTickDelay: S.Number,
+    dyingTimer: S.Number,
     
     // Stats
     bombsActive: S.Number,
@@ -192,6 +193,7 @@ export const initPlayer = (id: string, x: number, y: number, isBot: boolean, bot
         lastDirection: "up",
         isAlive: true,
         deathTickDelay: 0,
+        dyingTimer: 0,
         bombsActive: 0,
         maxBombs: 1,
         bombRange: 1,

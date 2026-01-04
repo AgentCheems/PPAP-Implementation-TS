@@ -1,5 +1,5 @@
 import { Model, Bomb, Cell, GameStatus, Empty, Player, PowerUp, PowerupType, InputState, initModel, generateGrid, SoftBlock } from "./model"
-import { ROWS, COLS, FPS, PLAYER_SPEED, BOMB_TIMER_SECONDS, EXPLOSION_DURATION_SECONDS } from "./constants"
+import { ROWS, COLS, FPS, PLAYER_SPEED, BOMB_TIMER_SECONDS, EXPLOSION_DURATION_SECONDS, PLAYER_DYING_TIME_SECONDS } from "./constants"
 import settings from "./settings.json"
 import { Msg } from "./message"
 import { HashMap as HM, Array as A, Option, Match } from "effect"
@@ -282,7 +282,10 @@ export const update = (msg: Msg, model: Model): Model => {
 
             // 5. PLAYER LOOP (Unified)
             const nextPlayers = model.players.map(p => {
-                if (!p.isAlive) return p
+                if (!p.isAlive) {
+                    if (p.dyingTimer > 0) return {...p, dyingTimer: p.dyingTimer - 1} 
+                    return p
+                }
 
                 let nextP = { ...p }
                 let intent: BotIntent = { dx: 0, dy: 0, plant: false }
@@ -351,7 +354,7 @@ export const update = (msg: Msg, model: Model): Model => {
                 }
 
                 if (explosions.some(e => e.x === playerTileX && e.y === playerTileY)) {
-                    updatedPlayer = { ...updatedPlayer, isAlive: false, deathTickDelay: model.lastTickTime }
+                    updatedPlayer = { ...updatedPlayer, isAlive: false, deathTickDelay: model.lastTickTime, dyingTimer: PLAYER_DYING_TIME_SECONDS * FPS }
                 }
                 
                 // Update stats

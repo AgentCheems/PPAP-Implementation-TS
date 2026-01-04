@@ -14,6 +14,7 @@ export const EXPLOSION_RANGE = 1;
 // Entities
 export const PLAYER_RADIUS = 0.35; 
 export const PLAYER_SPEED = 0.15;
+export const PLAYER_DYING_TIME_SECONDS = 3;
 
 // Phase 3/4: Player positions
 export const PLAYER_START_POSITIONS = {

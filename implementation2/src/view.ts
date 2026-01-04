@@ -7,7 +7,7 @@ import {
     CanvasImage
 } from "cs12251-mvu/src/canvas"
 import { Model, GameStatus, PowerupType } from "./model"
-import { ROWS, COLS, TILE_SIZE, BOMB_TIMER_SECONDS, FPS } from "./constants"
+import { ROWS, COLS, TILE_SIZE, BOMB_TIMER_SECONDS, FPS, PLAYER_DYING_TIME_SECONDS } from "./constants"
 import { Match, HashMap as HM } from "effect"
 import { getDebugElements } from "./debug"
 
@@ -15,16 +15,25 @@ import p1SpriteUp from "url:./assets/players/p1/p1_sprite_up.png"
 import p1SpriteDown from "url:./assets/players/p1/p1_sprite_down.png"
 import p1SpriteLeft from "url:./assets/players/p1/p1_sprite_left.png"
 import p1SpriteRight from "url:./assets/players/p1/p1_sprite_right.png"
+import p1SpriteDying1 from "url:./assets/players/p1/p1_sprite_dying_1.png"
+import p1SpriteDying2 from "url:./assets/players/p1/p1_sprite_dying_2.png"
+import p1SpriteDying3 from "url:./assets/players/p1/p1_sprite_dying_3.png"
 
 import p2SpriteUp from "url:./assets/players/p2/p2_sprite_up.png"
 import p2SpriteDown from "url:./assets/players/p2/p2_sprite_down.png"
 import p2SpriteLeft from "url:./assets/players/p2/p2_sprite_left.png"
 import p2SpriteRight from "url:./assets/players/p2/p2_sprite_right.png"
+import p2SpriteDying1 from "url:./assets/players/p2/p2_sprite_dying_1.png"
+import p2SpriteDying2 from "url:./assets/players/p2/p2_sprite_dying_2.png"
+import p2SpriteDying3 from "url:./assets/players/p2/p2_sprite_dying_3.png"
 
 import p3SpriteUp from "url:./assets/players/p3/p3_sprite_up.png"
 import p3SpriteDown from "url:./assets/players/p3/p3_sprite_down.png"
 import p3SpriteLeft from "url:./assets/players/p3/p3_sprite_left.png"
 import p3SpriteRight from "url:./assets/players/p3/p3_sprite_right.png"
+import p3SpriteDying1 from "url:./assets/players/p3/p3_sprite_dying_1.png"
+import p3SpriteDying2 from "url:./assets/players/p3/p3_sprite_dying_2.png"
+import p3SpriteDying3 from "url:./assets/players/p3/p3_sprite_dying_3.png"
 
 import bomb1 from "url:./assets/bombs/bomb_1.png"
 import bomb2 from "url:./assets/bombs/bomb_2.png"
@@ -47,7 +56,6 @@ import powerupFire1 from "url:./assets/powerups/powerup_fire_1.png"
 import powerupFire2 from "url:./assets/powerups/powerup_fire_2.png"
 import powerupSpeed1 from "url:./assets/powerups/powerup_speed_1.png"
 import powerupSpeed2 from "url:./assets/powerups/powerup_speed_2.png"
-import { date } from "effect/FastCheck"
 
 
 const p1Sprites = {
@@ -55,6 +63,7 @@ const p1Sprites = {
     down: p1SpriteDown,
     left: p1SpriteLeft,
     right: p1SpriteRight, 
+    dying: [p1SpriteDying3, p1SpriteDying2, p1SpriteDying1],
 }
 
 const p2Sprites = {
@@ -62,6 +71,7 @@ const p2Sprites = {
     down: p2SpriteDown,
     left: p2SpriteLeft,
     right: p2SpriteRight, 
+    dying: [p2SpriteDying3, p2SpriteDying2, p2SpriteDying1],
 }
 
 const p3Sprites = {
@@ -69,6 +79,7 @@ const p3Sprites = {
     down: p3SpriteDown,
     left: p3SpriteLeft,
     right: p3SpriteRight, 
+    dying: [p3SpriteDying3, p3SpriteDying2, p3SpriteDying1],
 }
 
 const bombSprites = [
@@ -162,14 +173,24 @@ export const view = (model: Model): CanvasElement[] => {
     })
 
     // PLAYERS
-    const renderPlayer = (p: any, imgSrcs: {[key: string]: string}) => {
+    const renderPlayer = (p: any, imgSrcs: {[key: string]: string | string[]}) => {
         
-        if (!p.isAlive) return
+        if (!p.isAlive) {
+            if (p.dyingTimer <= 0) return
+            const stage = Math.floor(p.dyingTimer * 3 / (PLAYER_DYING_TIME_SECONDS * FPS))
+            const src = imgSrcs["dying"][stage]
+            elements.push(CanvasImage.make({
+                x: (p.xCoordinate * TILE_SIZE) - TILE_SIZE / 2,
+                y: (p.yCoordinate * TILE_SIZE) - TILE_SIZE / 2,
+                src: src
+            }))
+            return
+        }
         
         elements.push(CanvasImage.make({
             x: (p.xCoordinate * TILE_SIZE) - TILE_SIZE / 2,
             y: (p.yCoordinate * TILE_SIZE) - TILE_SIZE / 2,
-            src: imgSrcs[p.lastDirection] || imgSrcs["up"]
+            src: (imgSrcs[p.lastDirection] || imgSrcs["up"]) as string
         }))
     }
 
