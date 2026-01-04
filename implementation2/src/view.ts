@@ -26,6 +26,30 @@ import p3SpriteDown from "url:./assets/players/p3/p3_sprite_down.png"
 import p3SpriteLeft from "url:./assets/players/p3/p3_sprite_left.png"
 import p3SpriteRight from "url:./assets/players/p3/p3_sprite_right.png"
 
+import bomb1 from "url:./assets/bombs/bomb_1.png"
+import bomb2 from "url:./assets/bombs/bomb_2.png"
+import bomb3 from "url:./assets/bombs/bomb_3.png"
+
+import explosion1 from "url:./assets/explosions/explosion_1.png"
+import explosion2 from "url:./assets/explosions/explosion_2.png"
+import explosion3 from "url:./assets/explosions/explosion_3.png"
+import explosion4 from "url:./assets/explosions/explosion_4.png"
+import soft1 from "url:./assets/explosions/soft_1.png"
+import soft2 from "url:./assets/explosions/soft_2.png"
+import soft3 from "url:./assets/explosions/soft_3.png"
+import soft4 from "url:./assets/explosions/soft_4.png"
+
+import softblock from "url:./assets/blocks/softblock.png"
+
+import powerupBomb1 from "url:./assets/powerups/powerup_bomb_1.png"
+import powerupBomb2 from "url:./assets/powerups/powerup_bomb_2.png"
+import powerupFire1 from "url:./assets/powerups/powerup_fire_1.png"
+import powerupFire2 from "url:./assets/powerups/powerup_fire_2.png"
+import powerupSpeed1 from "url:./assets/powerups/powerup_speed_1.png"
+import powerupSpeed2 from "url:./assets/powerups/powerup_speed_2.png"
+import { date } from "effect/FastCheck"
+
+
 const p1Sprites = {
     up: p1SpriteUp,
     down: p1SpriteDown,
@@ -58,6 +82,11 @@ const explosionSprites = {
     softBlock: [soft4, soft3, soft2, soft1],
 }
 
+const powerupSprites = {
+    [PowerupType.BombUp]: [powerupBomb1, powerupBomb2],
+    [PowerupType.FireUp]: [powerupFire1, powerupFire2],
+    [PowerupType.SpeedUp]: [powerupSpeed1, powerupSpeed2], 
+}
 export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = []
     elements.push(Clear.make({ color: "#228822" }))
@@ -97,30 +126,11 @@ export const view = (model: Model): CanvasElement[] => {
     HM.forEach(model.powerups, (pu) => {
         const px = pu.x * TILE_SIZE
         const py = pu.y * TILE_SIZE
-        let pow = ""
         
-        Match.value(pu.type).pipe(
-            Match.when(PowerupType.FireUp, () => {
-                pow = "fireUp"
-            }),
-            Match.when(PowerupType.BombUp, () => {
-                pow = "bombUp"
-            }),
-            Match.when(PowerupType.SpeedUp, () => {
-                pow = "speedUp"
-            }),
-            // add dito bago Rainbow
-            Match.orElse(() => "")
-        )
-        
-        elements.push(Text.make({
-            x: px + TILE_SIZE / 2,
-            y: py + TILE_SIZE / 2,
-            text: pow,
-            color: "white",
-            fontSize: 12,
-            font: "bold Arial",
-            textAlign: "center"
+        elements.push(CanvasImage.make({
+            x: px,
+            y: py,
+            src: powerupSprites[pu.type][Math.floor(Date.now() / 500) % 2]
         }))
     })
 
