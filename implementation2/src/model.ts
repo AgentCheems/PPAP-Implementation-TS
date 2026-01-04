@@ -142,7 +142,12 @@ export const Model = S.Struct({
     //
     numHumanPlayers: S.Number,
     numBots: S.Number,
-    debugMode: S.Boolean
+    debugMode: S.Boolean,
+    //
+    playExplosionSound: S.Boolean,
+    playDeathSound: S.Boolean,
+    playPowerUpSound: S.Boolean,
+
 });
 export type Model = typeof Model.Type;
 
@@ -244,5 +249,8 @@ export const initModel = Model.make({
     winsToWin: settings.winsToWin,
     numHumanPlayers: settings.numHumanPlayers,
     numBots: settings.botTypes.length,
-    debugMode: false
+    debugMode: false,
+    playExplosionSound: false,
+    playDeathSound: false,
+    playPowerUpSound: false,
 });

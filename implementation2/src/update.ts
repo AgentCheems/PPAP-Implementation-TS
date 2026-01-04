@@ -174,6 +174,9 @@ const triggerExplosion = (bomb: Bomb, grid: Cell[][], bombs: HM.HashMap<number, 
 export const update = (msg: Msg, model: Model): Model => {
     return Match.value(msg).pipe(
         Match.tag("Canvas.MsgTick", () => {
+            let shouldPlayPowerUpSound = false
+            let shouldPlayDeathSound = false
+            let shouldPlayExplosionSound = false
             const inputs = InputState.make(getInputKey());
 
             // 0.A ROUND START
@@ -246,7 +249,11 @@ export const update = (msg: Msg, model: Model): Model => {
             
             const toExplode: number[] = []
             bombs = HM.map(bombs, b => ({...b, timer: b.timer-1}))
-            HM.forEach(bombs, (b, k) => { if (b.timer <= 0) toExplode.push(k); })
+            HM.forEach(bombs, (b, k) => { if (b.timer <= 0) {
+                toExplode.push(k); 
+                shouldPlayExplosionSound = true
+                console.log("utot")
+            }})
 
             // 4. CHAIN REACTIONS
             const queue = [...toExplode]
@@ -351,10 +358,12 @@ export const update = (msg: Msg, model: Model): Model => {
                         updatedPlayer = { ...updatedPlayer, speedMulti: updatedPlayer.speedMulti + 0.2 }
                     }
                     powerups = HM.remove(powerups, k)
+                    shouldPlayPowerUpSound = true
                 }
 
                 if (explosions.some(e => e.x === playerTileX && e.y === playerTileY)) {
                     updatedPlayer = { ...updatedPlayer, isAlive: false, deathTickDelay: model.lastTickTime, dyingTimer: PLAYER_DYING_TIME_SECONDS * FPS }
+                    shouldPlayDeathSound = true
                 }
                 
                 // Update stats
@@ -397,7 +406,7 @@ export const update = (msg: Msg, model: Model): Model => {
                     grid,
                     bombs,
                     powerups,
-                    explosions
+                    explosions,
                 }
             }
 
@@ -413,7 +422,10 @@ export const update = (msg: Msg, model: Model): Model => {
                 timeTickAcc: tickAcc >= FPS ? 0 : tickAcc,
                 timeLeft,
                 lastTickTime: model.lastTickTime + 1,
-                debugMode: nextDebug
+                debugMode: nextDebug,
+                playDeathSound: shouldPlayDeathSound,
+                playExplosionSound: shouldPlayExplosionSound,
+                playPowerUpSound: shouldPlayPowerUpSound,
             }
         }),
         Match.tag("Canvas.MsgKeyDown", () => model),

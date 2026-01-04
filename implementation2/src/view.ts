@@ -57,6 +57,9 @@ import powerupFire2 from "url:./assets/powerups/powerup_fire_2.png"
 import powerupSpeed1 from "url:./assets/powerups/powerup_speed_1.png"
 import powerupSpeed2 from "url:./assets/powerups/powerup_speed_2.png"
 
+import deathSound from "url:./assets/sounds/death.mp3"
+import explosionSound from "url:./assets/sounds/explosion.mp3"
+import powerUpSound from "url:./assets/sounds/powerup.mp3"
 
 const p1Sprites = {
     up: p1SpriteUp,
@@ -102,6 +105,21 @@ export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = []
     elements.push(Clear.make({ color: "#228822" }))
     
+    // Play sounds
+    if (model.playPowerUpSound) {
+        const audio = new Audio(powerUpSound)
+        audio.play()
+    }
+
+    if (model.playDeathSound) {
+        const audio = new Audio(deathSound)
+        audio.play()
+    }
+
+    if (model.playExplosionSound) {
+        const audio = new Audio(explosionSound) 
+    }
+
     // Render grid 
     model.grid.forEach((row, y) => {
         row.forEach((cell, x) => {
