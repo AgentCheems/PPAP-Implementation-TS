@@ -366,7 +366,7 @@ export const update = (msg: Msg, model: Model): Model => {
             const alive = nextPlayers.filter(p => p.isAlive)
             const dead = nextPlayers.filter(p => !p.isAlive)
             let roundEnded = false
-            let roundWinnerId = "" // or start with false
+            let roundWinnerId = "DRAW" // or start with false
             let updatedPlayers = nextPlayers
             
             if (alive.length <= 1) {

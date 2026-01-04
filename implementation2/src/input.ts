@@ -1,4 +1,3 @@
-//bruh need paba naka effects to, kasi di ko alam pano
 export type KeyboardInput = {
     up: boolean
     down: boolean

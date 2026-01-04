@@ -148,7 +148,7 @@ export type Model = typeof Model.Type;
 // --- INITIALIZATION ---
 
 export const generateGrid = (): Array<Array<Cell>> => {
-    const grid: Cell[][] = [];
+    const grid: Cell[][] = []
     const isSafe = (x: number, y: number) => {
         // Corners and adjacents
         const safeSpots = [

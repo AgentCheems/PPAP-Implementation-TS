@@ -207,11 +207,11 @@
       });
     }
   }
-})({"6IEN7":[function(require,module,exports,__globalThis) {
+})({"5IWi0":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
-var HMR_SERVER_PORT = 1234;
+var HMR_SERVER_PORT = 42957;
 var HMR_SECURE = false;
 var HMR_ENV_HASH = "439701173a9199ea";
 var HMR_USE_SSE = false;
@@ -57724,7 +57724,7 @@ const BOT_CONFIGS = {
     greedy
 };
 
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs","effect":"1QzRN"}],"1F4ak":[function(require,module,exports,__globalThis) {
+},{"effect":"1QzRN","@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs"}],"1F4ak":[function(require,module,exports,__globalThis) {
 module.exports = JSON.parse("{\"softBlockChance\":40,\"powerupChance\":100,\"gameDuration\":120,\"numHumanPlayers\":2,\"botTypes\":[\"careful\",\"hostile\"],\"winsToWin\":2}");
 
 },{}],"lWaIB":[function(require,module,exports,__globalThis) {
@@ -58003,7 +58003,7 @@ const view = (model)=>{
     return elements;
 };
 
-},{"cs12251-mvu/src/canvas":"jJlry","./model":"dbRFS","./constants":"erwUD","effect":"1QzRN","@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs","./debug":"haeTs","url:./assets/players/p1/p1_sprite_up.png":"ame1U","url:./assets/players/p1/p1_sprite_down.png":"h7ouf","url:./assets/players/p1/p1_sprite_left.png":"esxbG","url:./assets/players/p1/p1_sprite_right.png":"TZA2e","url:./assets/players/p2/p2_sprite_up.png":"3MvEr","url:./assets/players/p2/p2_sprite_down.png":"eXD1D","url:./assets/players/p2/p2_sprite_left.png":"9ynBu","url:./assets/players/p2/p2_sprite_right.png":"cU2tO","url:./assets/players/p3/p3_sprite_up.png":"g4Twc","url:./assets/players/p3/p3_sprite_down.png":"az7lf","url:./assets/players/p3/p3_sprite_left.png":"egVjb","url:./assets/players/p3/p3_sprite_right.png":"ee3uz"}],"jJlry":[function(require,module,exports,__globalThis) {
+},{"cs12251-mvu/src/canvas":"jJlry","./model":"dbRFS","./constants":"erwUD","effect":"1QzRN","./debug":"haeTs","url:./assets/players/p1/p1_sprite_up.png":"ame1U","url:./assets/players/p1/p1_sprite_down.png":"h7ouf","url:./assets/players/p1/p1_sprite_left.png":"esxbG","url:./assets/players/p1/p1_sprite_right.png":"TZA2e","url:./assets/players/p2/p2_sprite_up.png":"3MvEr","url:./assets/players/p2/p2_sprite_down.png":"eXD1D","url:./assets/players/p2/p2_sprite_left.png":"9ynBu","url:./assets/players/p2/p2_sprite_right.png":"cU2tO","url:./assets/players/p3/p3_sprite_up.png":"g4Twc","url:./assets/players/p3/p3_sprite_down.png":"az7lf","url:./assets/players/p3/p3_sprite_left.png":"egVjb","@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs","url:./assets/players/p3/p3_sprite_right.png":"ee3uz"}],"jJlry":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "CanvasElement", ()=>CanvasElement);
@@ -58118,15 +58118,9 @@ parcelHelpers.export(exports, "getDebugElements", ()=>getDebugElements);
 var _canvas = require("cs12251-mvu/src/canvas");
 var _effect = require("effect");
 var _constants = require("./constants");
-// Configuration for Path Markers (Corner positions)
-const CORNER_OFFSET = 4 // Pixels from the edge
-;
+const CORNER_OFFSET = 4;
 const MARKER_SIZE = 6;
 const getPathMarkerOffset = (botId)=>{
-    // P1 is human, usually 0.
-    // P2 (Id 1): Top-Right
-    // P3 (Id 2): Bottom-Left
-    // P4 (Id 3): Bottom-Right
     return (0, _effect.pipe)((0, _effect.Match).value(botId).pipe((0, _effect.Match).when("P1", ()=>({
             dx: (0, _constants.TILE_SIZE) - CORNER_OFFSET - MARKER_SIZE,
             dy: CORNER_OFFSET,
@@ -58152,9 +58146,6 @@ const getDebugElements = (players)=>{
         const cx = bot.xCoordinate * (0, _constants.TILE_SIZE);
         const cy = bot.yCoordinate * (0, _constants.TILE_SIZE);
         // 1. Draw Danger Radius
-        // Only if dangerDist > 0 (Hostile is 0, so no circle)
-        // Note: Assuming you have a `config` object or property on bot to get dangerDist.
-        // If not, we map it manually like in Python:
         const dangerDistMap = {
             hostile: 1,
             careful: 4,
@@ -58188,7 +58179,6 @@ const getDebugElements = (players)=>{
             textAlign: "center"
         }));
         // 4. Draw Path Markers
-        // Iterate through the bot's calculated path
         const { dx, dy, color } = getPathMarkerOffset(bot.id);
         bot.botPath.forEach((step)=>{
             elements.push((0, _canvas.SolidRectangle).make({
@@ -58625,7 +58615,7 @@ const update = (msg, model)=>{
         const alive = nextPlayers.filter((p)=>p.isAlive);
         const dead = nextPlayers.filter((p)=>!p.isAlive);
         let roundEnded = false;
-        let roundWinnerId = "" // or start with false
+        let roundWinnerId = "DRAW" // or start with false
         ;
         let updatedPlayers = nextPlayers;
         if (alive.length <= 1) {
@@ -58671,8 +58661,7 @@ const update = (msg, model)=>{
     }), (0, _effect.Match).tag("Canvas.MsgKeyDown", ()=>model), (0, _effect.Match).tag("Canvas.MsgMouseDown", ()=>model), (0, _effect.Match).tag("Restart", ()=>(0, _model.initModel)), (0, _effect.Match).exhaustive);
 };
 
-},{"./model":"dbRFS","./constants":"erwUD","./settings.json":"1F4ak","effect":"1QzRN","./input":"9XZqm","@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs","./bot":"jrkUf"}],"9XZqm":[function(require,module,exports,__globalThis) {
-//bruh need paba naka effects to, kasi di ko alam pano
+},{"./model":"dbRFS","./constants":"erwUD","./settings.json":"1F4ak","effect":"1QzRN","./input":"9XZqm","./bot":"jrkUf","@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs"}],"9XZqm":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "getInputKey", ()=>getInputKey);
@@ -58743,33 +58732,21 @@ const isWalkable = (grid, x, y, allowSoft)=>{
     if (!allowSoft && cell._tag === "SoftBlock") return false;
     return true;
 };
-// --- PATHFINDING (Dijkstra / Shortest Path Spec Implementation) ---
-// copied from https://ondras.github.io/rot.js/manual/#path hahahaha
-/**
- * find the shortest path from (sx, sy) to (tx, ty)
- * Uses explicit distance tracking and edge relaxation (C+1 < S).
- * allowSoft If true, path can go through SoftBlocks (Wander/Attack).
- * dangerKeys Set of integer keys representing dangerous cells to avoid.
- */ const findPath = (sx, sy, tx, ty, grid, allowSoft, dangerKeys = null)=>{
+// ---  (Dijkstra) ---
+// credits from from https://ondras.github.io/rot.js/manual/#path hahahaha
+const findPath = (sx, sy, tx, ty, grid, allowSoft, dangerKeys = null)=>{
     if (sx === tx && sy === ty) return [];
     const startKey = getIntKey(sx, sy);
     const targetKey = getIntKey(tx, ty);
-    // 1. Assign the distance +∞ for all cells; assign 0 for the starting cell
-    // We use a Map or sparse array to represent the grid distances. 
-    // Missing key implies +∞.
     const dist = new Map(); // para syang cost of each tile, starting at 0 up to infiinty
     dist.set(startKey, 0);
-    // 2. Assign the "source cell" (parent) of each cell to be nothing
     const cameFrom = new Map(); // lets say papunta tayo tile B, galing A, we write a map  B -> A
-    // 3. Create a set of unvisited cells (managed as a Queue for the frontier)
-    // Add the starting cell to the set
     const queue = [
         {
             x: sx,
             y: sy
         }
     ];
-    // Neighbor order: Up, Down, Left, Right
     const dirs = [
         {
             x: 0,
@@ -58788,14 +58765,11 @@ const isWalkable = (grid, x, y, allowSoft)=>{
             y: 0
         }
     ];
-    // 4. While the set of unvisited cells is nonempty
     let head = 0;
     while(head < queue.length){
-        // Remove the cell with the smallest assigned distance (FIFO queue preserves order in unweighted grid)
         const current = queue[head++];
         const currentKey = getIntKey(current.x, current.y);
         const currentDist = dist.get(currentKey);
-        // If the current cell is the target cell, terminate
         if (currentKey === targetKey) {
             const path = [];
             let currKey = targetKey;
@@ -58811,24 +58785,21 @@ const isWalkable = (grid, x, y, allowSoft)=>{
             }
             return path;
         }
-        // For each unvisited, walkable neighboring cell
         for (const d of dirs){
             const nx = current.x + d.x;
             const ny = current.y + d.y;
             const nKey = getIntKey(nx, ny);
             if (isWalkable(grid, nx, ny, allowSoft)) {
-                // Check external danger constraints (bombs/explosions)
+                // Check danger (bombs/explosions)
                 if (dangerKeys && dangerKeys.has(nKey)) continue;
-                // Let C be assigned distance of current cell (currentDist)
+                // Let C be distance of current cell (currentDist)
                 // Let S be assigned distance of neighboring cell (neighborDist)
                 const neighborDist = dist.has(nKey) ? dist.get(nKey) : Infinity;
                 // If C + 1 is less than S
                 if (currentDist + 1 < neighborDist) {
-                    // Update the assigned distance of neighboring cell
+                    // Update assigned distance of neighboring cell
                     dist.set(nKey, currentDist + 1);
-                    // Set the "source cell" to current cell
                     cameFrom.set(nKey, currentKey);
-                    // Add the selected cell to the set of unvisited cells
                     queue.push({
                         x: nx,
                         y: ny
@@ -58843,15 +58814,13 @@ const isWalkable = (grid, x, y, allowSoft)=>{
 // --- DANGER SENSING ---
 const getDangerousCells = (model, bot, config)=>{
     const danger = new Set();
-    // 1. Existing Explosions are ALWAYS dangerous
+    // ALWAYS dangerous
     model.explosions.forEach((e)=>danger.add(getIntKey(e.x, e.y)));
     // 2. Bombs
-    if (config.dangerType === "bomb_only") // Hostile: Only cells with bombs are dangerous
-    (0, _effect.HashMap).forEach(model.bombs, (b)=>{
+    if (config.dangerType === "bomb_only") (0, _effect.HashMap).forEach(model.bombs, (b)=>{
         danger.add(getIntKey(b.x, b.y));
     });
-    else if (config.dangerType === "future_explosion") // Careful/Greedy/Extreme: Cells with bombs OR cells that will be caught in explosion
-    (0, _effect.HashMap).forEach(model.bombs, (b)=>{
+    else if (config.dangerType === "future_explosion") (0, _effect.HashMap).forEach(model.bombs, (b)=>{
         danger.add(getIntKey(b.x, b.y));
         const dirs = [
             {
@@ -58898,16 +58867,14 @@ const reevaluate = (bot, bx, by, model, config, dangerCells, unsafeCells)=>{
     const nextBot = {
         ...bot
     };
-    // 1. DANGER -> ESCAPE (Highest Priority)
+    // 1. ESCAPE 
     if (isInDanger(bx, by, dangerCells, config.dangerDist)) {
         nextBot.botState = "escape";
         // Find safe reachable cell
         const safeCandidates = [];
-        // Use local Dijkstra flood for safe cells
+        //  Dijkstra ulit copy pastae
         const dist = new Map();
         dist.set(getIntKey(bx, by), 0);
-        // Use Dijkstra flood to find reachable safe cells
-        // Note: Using the same algorithm structure manually here for flood fill
         const queue = [
             {
                 x: bx,
@@ -58945,17 +58912,14 @@ const reevaluate = (bot, bx, by, model, config, dangerCells, unsafeCells)=>{
                 const nx = curr.x + d.x;
                 const ny = curr.y + d.y;
                 const nKey = getIntKey(nx, ny);
-                // Escape can only walk on empty cells (false)
                 if (isWalkable(model.grid, nx, ny, false)) {
                     const neighborDist = dist.has(nKey) ? dist.get(nKey) : Infinity;
-                    // Relaxation
                     if (currentDist + 1 < neighborDist) {
                         dist.set(nKey, currentDist + 1);
                         queue.push({
                             x: nx,
                             y: ny
                         });
-                        // Check safety for candidate list
                         if (!dangerCells.has(nKey)) safeCandidates.push({
                             x: nx,
                             y: ny
@@ -58973,7 +58937,7 @@ const reevaluate = (bot, bx, by, model, config, dangerCells, unsafeCells)=>{
         ;
         return nextBot;
     }
-    // 2. ATTACK -> ATTACK (Aggressive Priority)
+    // 2. ATTACK 
     let targetId = null;
     let targetDest = null;
     const enemies = [];
@@ -58982,13 +58946,12 @@ const reevaluate = (bot, bx, by, model, config, dangerCells, unsafeCells)=>{
         if (p.id !== bot.id && p.isAlive) enemies.push(p);
     }
     if (config.attackPolicy === 1) {
-        // Policy 1: find closest enemy we can actually reach
+        // Policy 1
         let minLen = Infinity;
         for (const enemy of enemies){
             const ex = Math.floor(enemy.xCoordinate);
             const ey = Math.floor(enemy.yCoordinate);
             if (getManhattanDist(bx, by, ex, ey) <= config.attackReachDist) {
-                // Must be reachable
                 const path = findPath(bx, by, ex, ey, model.grid, false, unsafeCells);
                 if (path && path.length < minLen) {
                     minLen = path.length;
@@ -59019,7 +58982,7 @@ const reevaluate = (bot, bx, by, model, config, dangerCells, unsafeCells)=>{
         nextBot.botPath = findPath(bx, by, targetDest.x, targetDest.y, model.grid, allowSoft, unsafeCells) || [];
         return nextBot;
     }
-    // 3. POWERUP -> GET_POWERUP (Lower Priority)
+    // 3. POWERUP
     if (Math.random() * 100 < config.powerupChance) {
         let bestPu = null;
         if (config.powerupPolicy === 1) {
@@ -59063,11 +59026,9 @@ const reevaluate = (bot, bx, by, model, config, dangerCells, unsafeCells)=>{
                     const nx = curr.x + d.x;
                     const ny = curr.y + d.y;
                     const nKey = getIntKey(nx, ny);
-                    // Powerup search allows soft blocks (true)
                     if (isWalkable(model.grid, nx, ny, true)) {
                         if (unsafeCells.has(nKey)) continue;
                         const neighborDist = dist.has(nKey) ? dist.get(nKey) : Infinity;
-                        // Relaxation
                         if (currentDist + 1 < neighborDist) {
                             dist.set(nKey, currentDist + 1);
                             queue.push({
@@ -59079,7 +59040,6 @@ const reevaluate = (bot, bx, by, model, config, dangerCells, unsafeCells)=>{
                 }
             }
         } else {
-            // Random near
             const candidates = [];
             (0, _effect.HashMap).forEach(model.powerups, (pu)=>{
                 if (getManhattanDist(bx, by, pu.x, pu.y) <= 4) {
@@ -59126,7 +59086,7 @@ const updateBot = (bot, model, events)=>{
     model.explosions.forEach((e)=>{
         unsafeCells.add(getIntKey(e.x, e.y));
     });
-    // 1. REEVALUATION CHECK // run djikastra only when
+    // 1. REEVALUATION // run djikastra only when
     nextBot.botTicksSinceThink += 1;
     const secondsSinceThink = nextBot.botTicksSinceThink / (0, _constants.FPS);
     const timerTrigger = secondsSinceThink >= config.reevalInterval && Math.random() * 100 < config.reevalChance; //wait for time
@@ -59136,7 +59096,7 @@ const updateBot = (bot, model, events)=>{
         const dangerCells = getDangerousCells(model, bot, config);
         nextBot = reevaluate(nextBot, bx, by, model, config, dangerCells, unsafeCells);
     }
-    // 2. STATE EXECUTION
+    // 2. STATE 
     const state = nextBot.botState;
     if (state === "wander") {
         const distToGoal = getManhattanDist(bx, by, nextBot.botGoalX, nextBot.botGoalY);
@@ -59174,7 +59134,7 @@ const updateBot = (bot, model, events)=>{
     } else if (state === "escape" || state === "getPowerup") {
         if (bx === nextBot.botGoalX && by === nextBot.botGoalY) nextBot.botState = "wander";
     }
-    // 3. MOVEMENT EXECUTION
+    // 3. MOVEMENT 
     if (nextBot.botPath.length > 0) {
         const nextStep = nextBot.botPath[0];
         if (nextStep.x === bx && nextStep.y === by) {
@@ -59203,8 +59163,7 @@ const updateBot = (bot, model, events)=>{
             }
         }
     }
-    // 4. OFFENSIVE PLANTING (Phase 4 Logic)
-    // Killer Instinct: If near enemy, drop bomb even if not blocked.
+    // 4. BETTER KILLING? (Phase 4 Logic)
     if (!unsafeCells.has(getIntKey(bx, by))) {
         let closestDist = Infinity;
         model.players.forEach((p)=>{
@@ -59215,7 +59174,7 @@ const updateBot = (bot, model, events)=>{
         });
         const isAggressive = nextBot.botState === "attack";
         const isCrowded = closestDist <= 2;
-        if (isAggressive && closestDist <= 1 || isCrowded) intent.plant = true;
+        if (isAggressive && closestDist <= 2 || isCrowded) intent.plant = true;
     }
     return {
         player: nextBot,
@@ -59223,6 +59182,6 @@ const updateBot = (bot, model, events)=>{
     };
 };
 
-},{"./constants":"erwUD","effect":"1QzRN","@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs"}]},["6IEN7","3v4Lq"], "3v4Lq", "parcelRequire7556", {}, "./", "/")
+},{"./constants":"erwUD","effect":"1QzRN","@parcel/transformer-js/src/esmodule-helpers.js":"9IpFs"}]},["5IWi0","3v4Lq"], "3v4Lq", "parcelRequire7556", {}, "./", "/")
 
 //# sourceMappingURL=implementation2.77f473f5.js.map

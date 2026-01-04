@@ -2,15 +2,10 @@ import { CanvasElement, OutlinedCircle, SolidCircle, SolidRectangle, Text} from 
 import { Match, pipe } from "effect";
 import { TILE_SIZE } from "./constants";
 import { Player } from "./model";
-// Configuration for Path Markers (Corner positions)
-const CORNER_OFFSET = 4 // Pixels from the edge
+const CORNER_OFFSET = 4
 const MARKER_SIZE = 6
 
 const getPathMarkerOffset = (botId: string): { dx: number, dy: number, color: string } => {
-  // P1 is human, usually 0.
-  // P2 (Id 1): Top-Right
-  // P3 (Id 2): Bottom-Left
-  // P4 (Id 3): Bottom-Right
   return pipe(Match.value(botId).pipe(
     Match.when("P1", () => ({
         dx: TILE_SIZE - CORNER_OFFSET - MARKER_SIZE,
@@ -46,9 +41,6 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
         const cy = bot.yCoordinate * TILE_SIZE
 
     // 1. Draw Danger Radius
-    // Only if dangerDist > 0 (Hostile is 0, so no circle)
-    // Note: Assuming you have a `config` object or property on bot to get dangerDist.
-    // If not, we map it manually like in Python:
         const dangerDistMap: Record<string, number> = { hostile: 1, careful: 4, greedy: 2 }
         const radiusCells = dangerDistMap[bot.botType] || 0
 
@@ -84,7 +76,6 @@ export const getDebugElements = (players: readonly Player[]): CanvasElement[] =>
     }))
 
     // 4. Draw Path Markers
-    // Iterate through the bot's calculated path
     const { dx, dy, color } = getPathMarkerOffset(bot.id)
 
     bot.botPath.forEach(step => {
