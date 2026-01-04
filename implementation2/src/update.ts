@@ -6,6 +6,12 @@ import { HashMap as HM, Array as A, Option, Match } from "effect"
 import { getInputKey } from "./input"
 import { updateBot, BotIntent } from "./bot"
 
+const availablePowerups = [
+    // PowerupType.BombUp,
+    // PowerupType.FireUp,
+    // PowerupType.SpeedUp,
+    PowerupType.Vest,
+]
 // ------------------------------------------------------------------
 // HELPERS
 // ------------------------------------------------------------------
@@ -273,10 +279,8 @@ export const update = (msg: Msg, model: Model): Model => {
                 res.brokenSoftBlocks.forEach(p => {
                     grid[p.y][p.x] = Empty.make({})
                     if (Math.random() * 100 < settings.powerupChance) {
-                        const random = Math.random()
-                        let type = random < 0.33 ? PowerupType.FireUp 
-                                : (random < 0.66 ? PowerupType.BombUp 
-                                : PowerupType.SpeedUp)
+                        const randomIndex = Math.floor(Math.random() * availablePowerups.length)
+                        let type = availablePowerups[randomIndex]
                         powerups = HM.set(powerups, getIntKey(p.x, p.y), PowerUp.make({type, x: p.x, y: p.y}))
                     }
                 })
@@ -296,6 +300,16 @@ export const update = (msg: Msg, model: Model): Model => {
 
                 let nextP = { ...p }
                 let intent: BotIntent = { dx: 0, dy: 0, plant: false }
+                
+                // Z. POWERUP STATE
+                if (nextP.VestTimer > 0 && nextP.hasVest) {
+                    nextP.VestTimer -= 1
+                    if (nextP.VestTimer <=0) {
+                        nextP.hasVest = false
+                    }
+                    console.log(nextP.VestTimer)
+                }
+
 
                 // A. GATHER INTENT
                 const isMoving = Math.abs(nextP.xCoordinate - nextP.targetX) > 0.05 || 
@@ -357,13 +371,18 @@ export const update = (msg: Msg, model: Model): Model => {
                     else if (pu.value.type === PowerupType.SpeedUp) {
                         updatedPlayer = { ...updatedPlayer, speedMulti: updatedPlayer.speedMulti + 0.2 }
                     }
+                    else if (pu.value.type === PowerupType.Vest) {
+                        updatedPlayer = { ...updatedPlayer, hasVest: true, VestTimer: FPS * 10, }
+                    }
                     powerups = HM.remove(powerups, k)
                     shouldPlayPowerUpSound = true
                 }
 
                 if (explosions.some(e => e.x === playerTileX && e.y === playerTileY)) {
+                    if (!updatedPlayer.hasVest) {
                     updatedPlayer = { ...updatedPlayer, isAlive: false, deathTickDelay: model.lastTickTime, dyingTimer: PLAYER_DYING_TIME_SECONDS * FPS }
                     shouldPlayDeathSound = true
+                    }
                 }
                 
                 // Update stats
