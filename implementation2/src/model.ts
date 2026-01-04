@@ -118,7 +118,8 @@ export const ExplosionCell = S.Struct({
     x: S.Int,
     y: S.Int,
     timer: S.Number,
-    owner: S.String
+    owner: S.String,
+    softBlock: S.Boolean, 
 });
 
 // MAIN MODEL

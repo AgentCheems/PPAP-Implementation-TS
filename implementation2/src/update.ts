@@ -1,4 +1,4 @@
-import { Model, Bomb, Cell, GameStatus, Empty, Player, PowerUp, PowerupType, InputState, initModel, generateGrid } from "./model"
+import { Model, Bomb, Cell, GameStatus, Empty, Player, PowerUp, PowerupType, InputState, initModel, generateGrid, SoftBlock } from "./model"
 import { ROWS, COLS, FPS, PLAYER_SPEED, BOMB_TIMER_SECONDS, EXPLOSION_DURATION_SECONDS } from "./constants"
 import settings from "./settings.json"
 import { Msg } from "./message"
@@ -130,10 +130,10 @@ const handleBombPlant = (p: Player, wantsPlant: boolean, bombs: HM.HashMap<numbe
 }
 
 const triggerExplosion = (bomb: Bomb, grid: Cell[][], bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>) => {
-    const newExplosion = [{x: bomb.x, y: bomb.y, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner }];
-    const hitBombs: number[] = []
-    const brokenSoftBlocks: {x: number, y: number}[] = []
-    const destroyedPowerups: number[] = []
+    const newExplosion = [{x: bomb.x, y: bomb.y, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner, softBlock: false }];
+    const hitBombs: number[] = [];
+    const brokenSoftBlocks: {x: number, y: number}[] = [];
+    const destroyedPowerups: number[] = [];
 
     const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}]
 
@@ -148,20 +148,20 @@ const triggerExplosion = (bomb: Bomb, grid: Cell[][], bombs: HM.HashMap<number, 
             if (cell._tag === "HardBlock") break
 
             if (cell._tag === "SoftBlock") {
-                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
-                brokenSoftBlocks.push({x: tx, y: ty})
-                break // pag nakasira ng isang softbock stop,
+                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner, softBlock: true });
+                brokenSoftBlocks.push({x: tx, y: ty});
+                break; // Explosion stops at soft block
             }
 
             const k = getIntKey(tx, ty)
             if (HM.has(bombs, k)) {
-                hitBombs.push(k)
-                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
-                break // pag nakahit ng other bomb, trigger chain
+                hitBombs.push(k);
+                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner, softBlock: false });
+                break; // Explosion stops at bomb (but triggers it)
             }
             if (HM.has(powerups, k)) destroyedPowerups.push(k)
             
-            newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
+            newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner, softBlock: false });
         }
     }
     return { newExplosion, hitBombs, brokenSoftBlocks, destroyedPowerups }

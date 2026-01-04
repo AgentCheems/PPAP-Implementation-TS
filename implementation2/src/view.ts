@@ -7,7 +7,7 @@ import {
     CanvasImage
 } from "cs12251-mvu/src/canvas"
 import { Model, GameStatus, PowerupType } from "./model"
-import { ROWS, COLS, TILE_SIZE } from "./constants"
+import { ROWS, COLS, TILE_SIZE, BOMB_TIMER_SECONDS, FPS } from "./constants"
 import { Match, HashMap as HM } from "effect"
 import { getDebugElements } from "./debug"
 
@@ -25,6 +25,7 @@ import p3SpriteUp from "url:./assets/players/p3/p3_sprite_up.png"
 import p3SpriteDown from "url:./assets/players/p3/p3_sprite_down.png"
 import p3SpriteLeft from "url:./assets/players/p3/p3_sprite_left.png"
 import p3SpriteRight from "url:./assets/players/p3/p3_sprite_right.png"
+
 const p1Sprites = {
     up: p1SpriteUp,
     down: p1SpriteDown,
@@ -44,6 +45,17 @@ const p3Sprites = {
     down: p3SpriteDown,
     left: p3SpriteLeft,
     right: p3SpriteRight, 
+}
+
+const bombSprites = [
+    bomb1,
+    bomb2,
+    bomb3,
+]
+
+const explosionSprites = {
+    regular: [explosion1, explosion2, explosion3, explosion4],
+    softBlock: [soft4, soft3, soft2, soft1],
 }
 
 export const view = (model: Model): CanvasElement[] => {
@@ -72,19 +84,10 @@ export const view = (model: Model): CanvasElement[] => {
                     color: "#444"
                 }))
             } else if (cell._tag === "SoftBlock") {
-                elements.push(SolidRectangle.make({
+                elements.push(CanvasImage.make({
                     x: px,
                     y: py,
-                    width: TILE_SIZE,
-                    height: TILE_SIZE,
-                    color: "#D2691E"
-                }))
-                elements.push(SolidRectangle.make({
-                    x: px + 4,
-                    y: py + 4,
-                    width: TILE_SIZE - 8,
-                    height: TILE_SIZE - 8,
-                    color: "#CD853F"
+                    src: softblock
                 }))
             }
         })
@@ -123,21 +126,14 @@ export const view = (model: Model): CanvasElement[] => {
 
     // BOMBS
     HM.forEach(model.bombs, (bomb) => {
-        const px = bomb.x * TILE_SIZE + (TILE_SIZE / 2)
-        const py = bomb.y * TILE_SIZE + (TILE_SIZE / 2)
-        const pulsingEffect = Math.sin(Date.now() / 100) * 2
+        const px = bomb.x * TILE_SIZE
+        const py = bomb.y * TILE_SIZE
+        const pulsingEffect = Math.round(Math.cos(6 * bomb.timer * Math.PI / (BOMB_TIMER_SECONDS*FPS)) + 1)
         
-        elements.push(SolidCircle.make({
+        elements.push(CanvasImage.make({
             x: px,
             y: py,
-            radius: (TILE_SIZE / 2.5) + pulsingEffect,
-            color: "black"
-        }));
-        elements.push(SolidCircle.make({
-            x: px,
-            y: py,
-            radius: (TILE_SIZE / 3),
-            color: "yellow"
+            src: bombSprites[pulsingEffect],
         }))
     })
 
@@ -146,19 +142,12 @@ export const view = (model: Model): CanvasElement[] => {
         const px = exp.x * TILE_SIZE
         const py = exp.y * TILE_SIZE
 
-        elements.push(SolidRectangle.make({
+        const type = exp.softBlock ? "softBlock" : "regular"
+
+        elements.push(CanvasImage.make({
             x: px,
             y: py,
-            width: TILE_SIZE,
-            height: TILE_SIZE,
-            color: "#FFD700"
-        }))
-        elements.push(SolidRectangle.make({
-            x: px + 5,
-            y: py + 5,
-            width: TILE_SIZE - 10,
-            height: TILE_SIZE - 10,
-            color: "#FFFFE0"
+            src: explosionSprites[type][Math.floor(exp.timer * 4 / FPS)]
         }))
     })
 
