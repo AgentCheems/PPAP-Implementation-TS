@@ -30,6 +30,17 @@ import bomb1 from "url:./assets/bombs/bomb_1.png"
 import bomb2 from "url:./assets/bombs/bomb_2.png"
 import bomb3 from "url:./assets/bombs/bomb_3.png"
 
+import explosion1 from "url:./assets/explosions/explosion_1.png"
+import explosion2 from "url:./assets/explosions/explosion_2.png"
+import explosion3 from "url:./assets/explosions/explosion_3.png"
+import explosion4 from "url:./assets/explosions/explosion_4.png"
+import soft1 from "url:./assets/explosions/soft_1.png"
+import soft2 from "url:./assets/explosions/soft_2.png"
+import soft3 from "url:./assets/explosions/soft_3.png"
+import soft4 from "url:./assets/explosions/soft_4.png"
+
+import softblock from "url:./assets/blocks/softblock.png"
+
 const p1Sprites = {
     up: p1SpriteUp,
     down: p1SpriteDown,
@@ -57,6 +68,11 @@ const bombSprites = [
     bomb3,
 ]
 
+const explosionSprites = {
+    regular: [explosion1, explosion2, explosion3, explosion4],
+    softBlock: [soft4, soft3, soft2, soft1],
+}
+
 export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = []
     elements.push(Clear.make({ color: "#228822" }))
@@ -83,19 +99,10 @@ export const view = (model: Model): CanvasElement[] => {
                     color: "#444"
                 }))
             } else if (cell._tag === "SoftBlock") {
-                elements.push(SolidRectangle.make({
+                elements.push(CanvasImage.make({
                     x: px,
                     y: py,
-                    width: TILE_SIZE,
-                    height: TILE_SIZE,
-                    color: "#D2691E"
-                }))
-                elements.push(SolidRectangle.make({
-                    x: px + 4,
-                    y: py + 4,
-                    width: TILE_SIZE - 8,
-                    height: TILE_SIZE - 8,
-                    color: "#CD853F"
+                    src: softblock
                 }))
             }
         })
@@ -150,19 +157,12 @@ export const view = (model: Model): CanvasElement[] => {
         const px = exp.x * TILE_SIZE
         const py = exp.y * TILE_SIZE
 
-        elements.push(SolidRectangle.make({
+        const type = exp.softBlock ? "softBlock" : "regular"
+
+        elements.push(CanvasImage.make({
             x: px,
             y: py,
-            width: TILE_SIZE,
-            height: TILE_SIZE,
-            color: "#FFD700"
-        }))
-        elements.push(SolidRectangle.make({
-            x: px + 5,
-            y: py + 5,
-            width: TILE_SIZE - 10,
-            height: TILE_SIZE - 10,
-            color: "#FFFFE0"
+            src: explosionSprites[type][Math.floor(exp.timer * 4 / FPS)]
         }))
     })
 
