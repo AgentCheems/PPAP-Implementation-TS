@@ -118,6 +118,7 @@ export const view = (model: Model): CanvasElement[] => {
 
     if (model.playExplosionSound) {
         const audio = new Audio(explosionSound) 
+        audio.play()
     }
 
     // Render grid 
