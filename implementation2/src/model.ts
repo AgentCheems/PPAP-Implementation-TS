@@ -36,9 +36,8 @@ export const InputState = S.Struct({
     escape: S.Boolean
 });
 
-export enum PowerupType { FireUp, BombUp, SpeedUp,
-    // Rainbow
- }
+export enum PowerupType { FireUp, BombUp, SpeedUp, Vest }
+// POWERUPS HERE FOR PART 2
 
 // POWERUPS
 export type PowerUp = typeof PowerUp.Type;
@@ -80,6 +79,8 @@ export const Player = S.Struct({
     speedMulti: S.Number,
     
     // Bonus Powerup here (Part 2)
+    hasVest: S.Boolean,
+    VestTimer: S.Number,
 
     // AI State (Phase 4)
     botType: BotType,
@@ -202,7 +203,9 @@ export const initPlayer = (id: string, x: number, y: number, isBot: boolean, bot
         bombsActive: 0,
         maxBombs: 1,
         bombRange: 1,
-        speedMulti: 1.0,
+        speedMulti: 1.0, 
+        hasVest: false, //part 2
+        VestTimer: 0, // part 2
         botType,
         botState: "wander",
         botGoalX: x,
