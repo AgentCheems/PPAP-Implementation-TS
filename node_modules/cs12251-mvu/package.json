@@ -1,0 +1,21 @@
+{
+  "name": "cs12251-mvu",
+  "version": "1.6.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.20.0",
+  "prettier": {
+    "semi": false,
+    "experimentalTernaries": true
+  },
+  "dependencies": {
+    "effect": "^3.18.4",
+    "snabbdom": "^3.6.3"
+  }
+}

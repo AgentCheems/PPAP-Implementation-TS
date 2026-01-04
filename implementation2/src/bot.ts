@@ -136,7 +136,7 @@ const getDangerousCells = (model: Model, bot: Player, config: BotConfig): Set<nu
         HM.forEach(model.bombs, (b) => {
             danger.add(getIntKey(b.x, b.y))
         });
-    } else {
+    } else if (config.dangerType === "future_explosion") {
         // Careful/Greedy/Extreme: Cells with bombs OR cells that will be caught in explosion
         HM.forEach(model.bombs, (b) => {
             danger.add(getIntKey(b.x, b.y))

@@ -2,7 +2,6 @@
 import { Schema as S, HashMap as HM, Array as A } from "effect";
 import { ROWS, COLS, PLAYER_START_POSITIONS, FPS } from "./constants";
 import settings from "./settings.json";
-import { upTo } from "effect/Schedule";
 
 // GAME-STATE Handling
 export enum GameStatus {
@@ -18,7 +17,7 @@ export const BotType = S.Union(
     S.Literal("hostile"),
     S.Literal("careful"),
     S.Literal("greedy"),
-    S.Literal("extreme"),
+    S.Literal("not")
 )
 
 export type BotState = typeof BotState.Type
@@ -181,7 +180,7 @@ export const generateGrid = (): Array<Array<Cell>> => {
     return grid;
 };
 
-export const initPlayer = (id: string, x: number, y: number, isBot: boolean, botType: "hostile" | "careful" | "greedy" | "extreme" = "hostile"): Player => {
+export const initPlayer = (id: string, x: number, y: number, isBot: boolean, botType: "hostile" | "careful" | "greedy" | "not"): Player => {
     return Player.make({
         id,
         isBot,
@@ -216,7 +215,7 @@ export const initModel = Model.make({
     status: GameStatus.ROUND_START,
     grid: generateGrid(),
     players: [
-        initPlayer("P1", PLAYER_START_POSITIONS.P1.x, PLAYER_START_POSITIONS.P1.y, false),
+        initPlayer("P1", PLAYER_START_POSITIONS.P1.x, PLAYER_START_POSITIONS.P1.y, false, "not"),
         ...(settings.numHumanPlayers === 1
             ? [
                 ...(settings.botTypes[0] ? [initPlayer("P2", PLAYER_START_POSITIONS.P2.x, PLAYER_START_POSITIONS.P2.y, true, settings.botTypes[0] as any)] : []),
@@ -224,7 +223,7 @@ export const initModel = Model.make({
                 ...(settings.botTypes[2] ? [initPlayer("P4", PLAYER_START_POSITIONS.P4.x, PLAYER_START_POSITIONS.P4.y, true, settings.botTypes[2] as any)] : [])
               ]
             : [
-                initPlayer("P2", PLAYER_START_POSITIONS.P2.x, PLAYER_START_POSITIONS.P2.y, false),
+                initPlayer("P2", PLAYER_START_POSITIONS.P2.x, PLAYER_START_POSITIONS.P2.y, false, "not"),
                 ...(settings.botTypes[0] ? [initPlayer("P3", PLAYER_START_POSITIONS.P3.x, PLAYER_START_POSITIONS.P3.y, true, settings.botTypes[0] as any)] : []),
                 ...(settings.botTypes[1] ? [initPlayer("P4", PLAYER_START_POSITIONS.P4.x, PLAYER_START_POSITIONS.P4.y, true, settings.botTypes[1] as any)] : [])
               ]

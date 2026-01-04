@@ -5,27 +5,25 @@ import { Msg } from "./message"
 import { HashMap as HM, Array as A, Option, Match } from "effect"
 import { getInputKey } from "./input"
 import { updateBot, BotIntent } from "./bot"
-import { nextIntBetween } from "effect/Random"
-import { round } from "effect/BigDecimal"
 
 // ------------------------------------------------------------------
 // HELPERS
 // ------------------------------------------------------------------
-const getIntKey = (x: number, y: number) => y * COLS + x;
+const getIntKey = (x: number, y: number) => y * COLS + x
 
 const isTileBlocked = (grid: Cell[][], bombs: HM.HashMap<number, Bomb>, tx: number, ty: number): boolean => {
     // 1. Boundary Check
-    if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return true;
+    if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return true
     
     // 2. Block Check
-    const cell = grid[ty][tx];
-    if (cell._tag === "HardBlock" || cell._tag === "SoftBlock") return true;
+    const cell = grid[ty][tx]
+    if (cell._tag === "HardBlock" || cell._tag === "SoftBlock") return true
     
     // 3. Bomb Check
     // We check if the TARGET tile has a bomb.
-    if (HM.has(bombs, getIntKey(tx, ty))) return true;
+    if (HM.has(bombs, getIntKey(tx, ty))) return true
     
-    return false;
+    return false
 }
 
 const resetRound = (prev: Model): Model => {
@@ -46,7 +44,7 @@ const resetRound = (prev: Model): Model => {
         players: playerScores,
         status: GameStatus.ROUND_START,
         roundStartTimer: 3 * FPS,
-        debugMode: prev.debugMode // par amaofff
+        debugMode: false // par amaofff
 
     }
 }
@@ -54,22 +52,19 @@ const resetRound = (prev: Model): Model => {
 // UNIFIED PHYSICS
 // ------------------------------------------------------------------
 
-/**
- * Attempts to move a player based on direction delta.
- * Handles interpolation (smooth movement) and collision detection.
- */
+
 const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs: HM.HashMap<number, Bomb>): Player => {
-    // 1. Interpolation / Existing Movement
+    // 1. Existing Movement
     const isMoving = Math.abs(player.xCoordinate - player.targetX)  || 
-                     Math.abs(player.yCoordinate - player.targetY) ;
+                     Math.abs(player.yCoordinate - player.targetY) 
 
     if (isMoving) {
-        const next = { ...player };
-        const speed = PLAYER_SPEED * player.speedMulti;
+        const next = { ...player }
+        const speed = PLAYER_SPEED * player.speedMulti
         
         // Move X
         if (Math.abs(next.xCoordinate - next.targetX) <= speed) {
-            next.xCoordinate = next.targetX; // Snap to target
+            next.xCoordinate = next.targetX; // Snap to target x
         } else {
             if (next.xCoordinate < next.targetX) next.xCoordinate += speed;
             else next.xCoordinate -= speed;
@@ -77,17 +72,16 @@ const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs: 
         
         // Move Y
         if (Math.abs(next.yCoordinate - next.targetY) <= speed) {
-            next.yCoordinate = next.targetY; // Snap to target
+            next.yCoordinate = next.targetY // Snap to target Y
         } else {
-            if (next.yCoordinate < next.targetY) next.yCoordinate += speed;
-            else next.yCoordinate -= speed;
+            if (next.yCoordinate < next.targetY) next.yCoordinate += speed
+            else next.yCoordinate -= speed
         }
         
         return next;
     }
 
-    // 2. New Move Initiation
-    // Snap position to exact target before calculating next move to prevent drift
+    // 2. Snap position 
     const snappedPlayer = { 
         ...player, 
         xCoordinate: player.targetX, 
@@ -96,40 +90,31 @@ const tryWalk = (player: Player, dx: number, dy: number, grid: Cell[][], bombs: 
 
     if (dx === 0 && dy === 0) return snappedPlayer; // No movement requested
 
-    // Convert float coordinate (center of tile) to integer grid index
-    // e.g., 1.5 -> floor(1.5) = 1.
     const currentTileX = Math.floor(snappedPlayer.xCoordinate);
     const currentTileY = Math.floor(snappedPlayer.yCoordinate);
 
     const targetTileX = currentTileX + dx;
     const targetTileY = currentTileY + dy;
 
-    // Check collision for the target tile
+    // Check mo collision sa target tile
     if (!isTileBlocked(grid, bombs, targetTileX, targetTileY)) {
-        // Path is clear, set new target to the CENTER of the target tile
-        // e.g. Tile 2 -> 2.5
         return {
             ...snappedPlayer,
             targetX: targetTileX + 0.5,
             targetY: targetTileY + 0.5
         };
     }
-
-    // Blocked
+    // Blocked do nothin
     return snappedPlayer;
 }
 
 const handleBombPlant = (p: Player, wantsPlant: boolean, bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>): HM.HashMap<number, Bomb> => {
     if (wantsPlant && p.isAlive) {
-        // Use Math.floor to get the tile index the player is currently STANDING ON
-        const bx = Math.floor(p.xCoordinate); 
-        const by = Math.floor(p.yCoordinate);
+        const bx = Math.floor(p.xCoordinate)
+        const by = Math.floor(p.yCoordinate)
         const k = getIntKey(bx, by);
-        
-        // Count active bombs for this player
         const activeCount = HM.reduce(bombs, 0, (acc, b) => b.owner === p.id ? acc + 1 : acc);
         
-        // Check limits and vacancy
         if (activeCount < p.maxBombs && !HM.has(bombs, k) && !HM.has(powerups, k)) {
             return HM.set(bombs, k, Bomb.make({
                 id: `${p.id}_${Date.now()}`,
@@ -138,48 +123,48 @@ const handleBombPlant = (p: Player, wantsPlant: boolean, bombs: HM.HashMap<numbe
                 timer: BOMB_TIMER_SECONDS * FPS,
                 range: p.bombRange,
                 owner: p.id
-            }));
+            }))
         }
     }
-    return bombs;
+    return bombs
 }
 
 const triggerExplosion = (bomb: Bomb, grid: Cell[][], bombs: HM.HashMap<number, Bomb>, powerups: HM.HashMap<number, PowerUp>) => {
     const newExplosion = [{x: bomb.x, y: bomb.y, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner }];
-    const hitBombs: number[] = [];
-    const brokenSoftBlocks: {x: number, y: number}[] = [];
-    const destroyedPowerups: number[] = [];
+    const hitBombs: number[] = []
+    const brokenSoftBlocks: {x: number, y: number}[] = []
+    const destroyedPowerups: number[] = []
 
-    const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}];
+    const dirs = [{dx: 0, dy: -1}, {dx: 0, dy: 1}, {dx: -1, dy: 0}, {dx: 1, dy: 0}]
 
     for (const dir of dirs) {
         for (let i = 1; i <= bomb.range; i++) {
-            const tx = bomb.x + (dir.dx * i);
-            const ty = bomb.y + (dir.dy * i);
+            const tx = bomb.x + (dir.dx * i)
+            const ty = bomb.y + (dir.dy * i)
             
-            if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) break;
+            if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) break
             
-            const cell = grid[ty][tx];
-            if (cell._tag === "HardBlock") break;
+            const cell = grid[ty][tx]
+            if (cell._tag === "HardBlock") break
 
             if (cell._tag === "SoftBlock") {
-                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner });
-                brokenSoftBlocks.push({x: tx, y: ty});
-                break; // Explosion stops at soft block
+                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
+                brokenSoftBlocks.push({x: tx, y: ty})
+                break // pag nakasira ng isang softbock stop,
             }
 
-            const k = getIntKey(tx, ty);
+            const k = getIntKey(tx, ty)
             if (HM.has(bombs, k)) {
-                hitBombs.push(k);
-                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner });
-                break; // Explosion stops at bomb (but triggers it)
+                hitBombs.push(k)
+                newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
+                break // pag nakahit ng other bomb, trigger chain
             }
-            if (HM.has(powerups, k)) destroyedPowerups.push(k);
+            if (HM.has(powerups, k)) destroyedPowerups.push(k)
             
-            newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner });
+            newExplosion.push({ x: tx, y: ty, timer: EXPLOSION_DURATION_SECONDS * FPS, owner: bomb.owner })
         }
     }
-    return { newExplosion, hitBombs, brokenSoftBlocks, destroyedPowerups };
+    return { newExplosion, hitBombs, brokenSoftBlocks, destroyedPowerups }
 }
 
 // ------------------------------------------------------------------
@@ -240,7 +225,7 @@ export const update = (msg: Msg, model: Model): Model => {
                 // timeout means draw
             if (timeLeft === 0) return { 
                 ...model, 
-                status: GameStatus.DRAW, 
+                status: GameStatus.GAME_OVER, //gameover round is done
                 roundWinner: "DRAW",
                 timeLeft: 0, 
                 input: inputs, 
@@ -345,7 +330,6 @@ export const update = (msg: Msg, model: Model): Model => {
                 bombs = handleBombPlant(walkedPlayer, intent.plant, bombs, powerups)
 
                 // E. COLLISIONS (Powerups & Explosions)
-                // Use Math.floor to identify the tile the player is currently occupying
                 let updatedPlayer = { ...walkedPlayer }
                 const playerTileX = Math.floor(updatedPlayer.xCoordinate)
                 const playerTileY = Math.floor(updatedPlayer.yCoordinate)

@@ -1,0 +1,28 @@
+{
+  "name": "cs12251project-ppap",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgentCheems/PPAP-Implementation-TS.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/AgentCheems/PPAP-Implementation-TS/issues"
+  },
+  "homepage": "https://github.com/AgentCheems/PPAP-Implementation-TS#readme",
+  "dependencies": {
+    "cs12251-mvu": "github:UPD-CS12-251/cs12251-mvu",
+    "effect": "^3.19.14"
+  },
+  "devDependencies": {
+    "buffer": "^6.0.3",
+    "process": "^0.11.10"
+  }
+}

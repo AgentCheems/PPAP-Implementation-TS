@@ -2,7 +2,7 @@
   "softBlockChance": 40,
   "powerupChance": 100,
   "gameDuration": 120,
-  "numHumanPlayers": 1,
+  "numHumanPlayers": 2,
   "botTypes": ["careful", "hostile"],
   "winsToWin": 2
 }

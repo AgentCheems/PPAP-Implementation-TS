@@ -25,7 +25,6 @@ import p3SpriteUp from "url:./assets/players/p3/p3_sprite_up.png"
 import p3SpriteDown from "url:./assets/players/p3/p3_sprite_down.png"
 import p3SpriteLeft from "url:./assets/players/p3/p3_sprite_left.png"
 import p3SpriteRight from "url:./assets/players/p3/p3_sprite_right.png"
-
 const p1Sprites = {
     up: p1SpriteUp,
     down: p1SpriteDown,
