@@ -35,6 +35,14 @@ import p3SpriteDying1 from "url:./assets/players/p3/p3_sprite_dying_1.png"
 import p3SpriteDying2 from "url:./assets/players/p3/p3_sprite_dying_2.png"
 import p3SpriteDying3 from "url:./assets/players/p3/p3_sprite_dying_3.png"
 
+import p4SpriteUp from "url:./assets/players/p4/p4_sprite_up.png"
+import p4SpriteDown from "url:./assets/players/p4/p4_sprite_down.png"
+import p4SpriteLeft from "url:./assets/players/p4/p4_sprite_left.png"
+import p4SpriteRight from "url:./assets/players/p4/p4_sprite_right.png"
+import p4SpriteDying1 from "url:./assets/players/p4/p4_sprite_dying_1.png"
+import p4SpriteDying2 from "url:./assets/players/p4/p4_sprite_dying_2.png"
+import p4SpriteDying3 from "url:./assets/players/p4/p4_sprite_dying_3.png"
+
 import bomb1 from "url:./assets/bombs/bomb_1.png"
 import bomb2 from "url:./assets/bombs/bomb_2.png"
 import bomb3 from "url:./assets/bombs/bomb_3.png"
@@ -48,7 +56,9 @@ import soft2 from "url:./assets/explosions/soft_2.png"
 import soft3 from "url:./assets/explosions/soft_3.png"
 import soft4 from "url:./assets/explosions/soft_4.png"
 
-import softblock from "url:./assets/blocks/softblock.png"
+import softBlock from "url:./assets/blocks/softblock.png"
+import hardBlock from "url:./assets/blocks/hardblock.png"
+import tileBlock from "url:./assets/blocks/tileblock.png"
 
 import powerupBomb1 from "url:./assets/powerups/powerup_bomb_1.png"
 import powerupBomb2 from "url:./assets/powerups/powerup_bomb_2.png"
@@ -83,6 +93,14 @@ const p3Sprites = {
     left: p3SpriteLeft,
     right: p3SpriteRight, 
     dying: [p3SpriteDying3, p3SpriteDying2, p3SpriteDying1],
+}
+
+const p4Sprites = {
+    up: p4SpriteUp,
+    down: p4SpriteDown,
+    left: p4SpriteLeft,
+    right: p4SpriteRight, 
+    dying: [p4SpriteDying3, p4SpriteDying2, p4SpriteDying1],
 }
 
 const bombSprites = [
@@ -128,25 +146,16 @@ export const view = (model: Model): CanvasElement[] => {
             const py = y * TILE_SIZE
 
             if (cell._tag === "HardBlock") {
-                elements.push(SolidRectangle.make({
+                elements.push(CanvasImage.make({
                     x: px,
                     y: py,
-                    width: TILE_SIZE,
-                    height: TILE_SIZE,
-                    color: "#333333"
-                }))
-                elements.push(SolidRectangle.make({
-                    x: px + 4,
-                    y: py + 4,
-                    width: TILE_SIZE - 8,
-                    height: TILE_SIZE - 8,
-                    color: "#444"
+                    src: hardBlock
                 }))
             } else if (cell._tag === "SoftBlock") {
                 elements.push(CanvasImage.make({
                     x: px,
                     y: py,
-                    src: softblock
+                    src: softBlock
                 }))
             }
         })
@@ -218,7 +227,7 @@ export const view = (model: Model): CanvasElement[] => {
         if (p.id == "P1") renderPlayer(p, p1Sprites)
         if (p.id == "P2") renderPlayer(p, p2Sprites)
         if (p.id == "P3") renderPlayer(p, p3Sprites)
-        // if (p.id == "P4") renderPlayer(p, p4Sprites)
+        if (p.id == "P4") renderPlayer(p, p4Sprites)
 
     })
 
