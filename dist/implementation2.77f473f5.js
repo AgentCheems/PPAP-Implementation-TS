@@ -57447,7 +57447,8 @@ const ExplosionCell = (0, _effect.Schema).Struct({
     x: (0, _effect.Schema).Int,
     y: (0, _effect.Schema).Int,
     timer: (0, _effect.Schema).Number,
-    owner: (0, _effect.Schema).String
+    owner: (0, _effect.Schema).String,
+    softBlock: (0, _effect.Schema).Boolean
 });
 const Model = (0, _effect.Schema).Struct({
     status: (0, _effect.Schema).Enums(GameStatus),
@@ -57777,6 +57778,25 @@ const p3Sprites = {
     left: (0, _p3SpriteLeftPngDefault.default),
     right: (0, _p3SpriteRightPngDefault.default)
 };
+const bombSprites = [
+    bomb1,
+    bomb2,
+    bomb3
+];
+const explosionSprites = {
+    regular: [
+        explosion1,
+        explosion2,
+        explosion3,
+        explosion4
+    ],
+    softBlock: [
+        soft4,
+        soft3,
+        soft2,
+        soft1
+    ]
+};
 const view = (model)=>{
     const elements = [];
     elements.push((0, _canvas.Clear).make({
@@ -57802,22 +57822,11 @@ const view = (model)=>{
                     height: (0, _constants.TILE_SIZE) - 8,
                     color: "#444"
                 }));
-            } else if (cell._tag === "SoftBlock") {
-                elements.push((0, _canvas.SolidRectangle).make({
-                    x: px,
-                    y: py,
-                    width: (0, _constants.TILE_SIZE),
-                    height: (0, _constants.TILE_SIZE),
-                    color: "#D2691E"
-                }));
-                elements.push((0, _canvas.SolidRectangle).make({
-                    x: px + 4,
-                    y: py + 4,
-                    width: (0, _constants.TILE_SIZE) - 8,
-                    height: (0, _constants.TILE_SIZE) - 8,
-                    color: "#CD853F"
-                }));
-            }
+            } else if (cell._tag === "SoftBlock") elements.push((0, _canvas.CanvasImage).make({
+                x: px,
+                y: py,
+                src: softblock
+            }));
         });
     });
     // POWERUPS
@@ -57845,39 +57854,24 @@ const view = (model)=>{
     });
     // BOMBS
     (0, _effect.HashMap).forEach(model.bombs, (bomb)=>{
-        const px = bomb.x * (0, _constants.TILE_SIZE) + (0, _constants.TILE_SIZE) / 2;
-        const py = bomb.y * (0, _constants.TILE_SIZE) + (0, _constants.TILE_SIZE) / 2;
-        const pulsingEffect = Math.sin(Date.now() / 100) * 2;
-        elements.push((0, _canvas.SolidCircle).make({
+        const px = bomb.x * (0, _constants.TILE_SIZE);
+        const py = bomb.y * (0, _constants.TILE_SIZE);
+        const pulsingEffect = Math.round(Math.cos(6 * bomb.timer * Math.PI / ((0, _constants.BOMB_TIMER_SECONDS) * (0, _constants.FPS))) + 1);
+        elements.push((0, _canvas.CanvasImage).make({
             x: px,
             y: py,
-            radius: (0, _constants.TILE_SIZE) / 2.5 + pulsingEffect,
-            color: "black"
-        }));
-        elements.push((0, _canvas.SolidCircle).make({
-            x: px,
-            y: py,
-            radius: (0, _constants.TILE_SIZE) / 3,
-            color: "yellow"
+            src: bombSprites[pulsingEffect]
         }));
     });
     // EXPLOSIONS
     model.explosions.forEach((exp)=>{
         const px = exp.x * (0, _constants.TILE_SIZE);
         const py = exp.y * (0, _constants.TILE_SIZE);
-        elements.push((0, _canvas.SolidRectangle).make({
+        const type = exp.softBlock ? "softBlock" : "regular";
+        elements.push((0, _canvas.CanvasImage).make({
             x: px,
             y: py,
-            width: (0, _constants.TILE_SIZE),
-            height: (0, _constants.TILE_SIZE),
-            color: "#FFD700"
-        }));
-        elements.push((0, _canvas.SolidRectangle).make({
-            x: px + 5,
-            y: py + 5,
-            width: (0, _constants.TILE_SIZE) - 10,
-            height: (0, _constants.TILE_SIZE) - 10,
-            color: "#FFFFE0"
+            src: explosionSprites[type][Math.floor(exp.timer * 4 / (0, _constants.FPS))]
         }));
     });
     // PLAYERS
@@ -58359,7 +58353,8 @@ const triggerExplosion = (bomb, grid, bombs, powerups)=>{
             x: bomb.x,
             y: bomb.y,
             timer: (0, _constants.EXPLOSION_DURATION_SECONDS) * (0, _constants.FPS),
-            owner: bomb.owner
+            owner: bomb.owner,
+            softBlock: false
         }
     ];
     const hitBombs = [];
@@ -58394,13 +58389,14 @@ const triggerExplosion = (bomb, grid, bombs, powerups)=>{
                 x: tx,
                 y: ty,
                 timer: (0, _constants.EXPLOSION_DURATION_SECONDS) * (0, _constants.FPS),
-                owner: bomb.owner
+                owner: bomb.owner,
+                softBlock: true
             });
             brokenSoftBlocks.push({
                 x: tx,
                 y: ty
             });
-            break; // pag nakasira ng isang softbock stop,
+            break; // Explosion stops at soft block
         }
         const k = getIntKey(tx, ty);
         if ((0, _effect.HashMap).has(bombs, k)) {
@@ -58409,16 +58405,18 @@ const triggerExplosion = (bomb, grid, bombs, powerups)=>{
                 x: tx,
                 y: ty,
                 timer: (0, _constants.EXPLOSION_DURATION_SECONDS) * (0, _constants.FPS),
-                owner: bomb.owner
+                owner: bomb.owner,
+                softBlock: false
             });
-            break; // pag nakahit ng other bomb, trigger chain
+            break; // Explosion stops at bomb (but triggers it)
         }
         if ((0, _effect.HashMap).has(powerups, k)) destroyedPowerups.push(k);
         newExplosion.push({
             x: tx,
             y: ty,
             timer: (0, _constants.EXPLOSION_DURATION_SECONDS) * (0, _constants.FPS),
-            owner: bomb.owner
+            owner: bomb.owner,
+            softBlock: false
         });
     }
     return {
