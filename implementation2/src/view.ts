@@ -7,7 +7,7 @@ import {
     CanvasImage
 } from "cs12251-mvu/src/canvas"
 import { Model, GameStatus, PowerupType } from "./model"
-import { ROWS, COLS, TILE_SIZE } from "./constants"
+import { ROWS, COLS, TILE_SIZE, BOMB_TIMER_SECONDS, FPS } from "./constants"
 import { Match, HashMap as HM } from "effect"
 import { getDebugElements } from "./debug"
 
@@ -25,6 +25,10 @@ import p3SpriteUp from "url:./assets/players/p3/p3_sprite_up.png"
 import p3SpriteDown from "url:./assets/players/p3/p3_sprite_down.png"
 import p3SpriteLeft from "url:./assets/players/p3/p3_sprite_left.png"
 import p3SpriteRight from "url:./assets/players/p3/p3_sprite_right.png"
+
+import bomb1 from "url:./assets/bombs/bomb_1.png"
+import bomb2 from "url:./assets/bombs/bomb_2.png"
+import bomb3 from "url:./assets/bombs/bomb_3.png"
 
 const p1Sprites = {
     up: p1SpriteUp,
@@ -46,6 +50,12 @@ const p3Sprites = {
     left: p3SpriteLeft,
     right: p3SpriteRight, 
 }
+
+const bombSprites = [
+    bomb1,
+    bomb2,
+    bomb3,
+]
 
 export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = []
@@ -124,21 +134,14 @@ export const view = (model: Model): CanvasElement[] => {
 
     // BOMBS
     HM.forEach(model.bombs, (bomb) => {
-        const px = bomb.x * TILE_SIZE + (TILE_SIZE / 2)
-        const py = bomb.y * TILE_SIZE + (TILE_SIZE / 2)
-        const pulsingEffect = Math.sin(Date.now() / 100) * 2
+        const px = bomb.x * TILE_SIZE
+        const py = bomb.y * TILE_SIZE
+        const pulsingEffect = Math.round(Math.cos(6 * bomb.timer * Math.PI / (BOMB_TIMER_SECONDS*FPS)) + 1)
         
-        elements.push(SolidCircle.make({
+        elements.push(CanvasImage.make({
             x: px,
             y: py,
-            radius: (TILE_SIZE / 2.5) + pulsingEffect,
-            color: "black"
-        }));
-        elements.push(SolidCircle.make({
-            x: px,
-            y: py,
-            radius: (TILE_SIZE / 3),
-            color: "yellow"
+            src: bombSprites[pulsingEffect],
         }))
     })
 
