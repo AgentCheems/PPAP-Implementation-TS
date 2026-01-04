@@ -2,6 +2,7 @@
 import { Schema as S, HashMap as HM, Array as A } from "effect";
 import { ROWS, COLS, PLAYER_START_POSITIONS, FPS } from "./constants";
 import settings from "./settings.json";
+import { upTo } from "effect/Schedule";
 
 // GAME-STATE Handling
 export enum GameStatus {
@@ -48,6 +49,15 @@ export const PowerUp = S.Struct({
     y: S.Int
 });
 
+// DIRECTION
+export type Direction = typeof Direction.Type; 
+export const Direction = S.Union(
+    S.Literal("up"),
+    S.Literal("down"),
+    S.Literal("left"),
+    S.Literal("right"),
+)
+
 // PLAYER
 export type Player = typeof Player.Type;
 export const Player = S.Struct({
@@ -58,6 +68,7 @@ export const Player = S.Struct({
     yCoordinate: S.Number,
     targetX: S.Number, // For smooth interpolation
     targetY: S.Number,
+    lastDirection: Direction,
     
     isAlive: S.Boolean,
     deathTickDelay: S.Number,
@@ -178,6 +189,7 @@ export const initPlayer = (id: string, x: number, y: number, isBot: boolean, bot
         yCoordinate: y,
         targetX: x,
         targetY: y,
+        lastDirection: "up",
         isAlive: true,
         deathTickDelay: 0,
         bombsActive: 0,

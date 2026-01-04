@@ -330,14 +330,21 @@ export const update = (msg: Msg, model: Model): Model => {
                         }
                     }
                 }
+                // B. UPDATE DIRECTION
+                if (intent.dx !== 0 || intent.dy !== 0) {
+                    if (intent.dx === -1) nextP.lastDirection = "left"
+                    else if (intent.dx === 1) nextP.lastDirection = "right"
+                    else if (intent.dy === -1) nextP.lastDirection = "up"
+                    else if (intent.dy === 1) nextP.lastDirection = "down"
+                }
 
-                // B. EXECUTE PHYSICS
+                // C. EXECUTE PHYSICS
                 let walkedPlayer = tryWalk(nextP, intent.dx, intent.dy, grid, bombs)
 
-                // C. ACTIONS (Planting)
+                // D. ACTIONS (Planting)
                 bombs = handleBombPlant(walkedPlayer, intent.plant, bombs, powerups)
 
-                // D. COLLISIONS (Powerups & Explosions)
+                // E. COLLISIONS (Powerups & Explosions)
                 // Use Math.floor to identify the tile the player is currently occupying
                 let updatedPlayer = { ...walkedPlayer }
                 const playerTileX = Math.floor(updatedPlayer.xCoordinate)

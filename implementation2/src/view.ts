@@ -11,6 +11,42 @@ import { ROWS, COLS, TILE_SIZE } from "./constants"
 import { Match, HashMap as HM } from "effect"
 import { getDebugElements } from "./debug"
 
+import p1SpriteUp from "url:./assets/players/p1/p1_sprite_up.png"
+import p1SpriteDown from "url:./assets/players/p1/p1_sprite_down.png"
+import p1SpriteLeft from "url:./assets/players/p1/p1_sprite_left.png"
+import p1SpriteRight from "url:./assets/players/p1/p1_sprite_right.png"
+
+import p2SpriteUp from "url:./assets/players/p2/p2_sprite_up.png"
+import p2SpriteDown from "url:./assets/players/p2/p2_sprite_down.png"
+import p2SpriteLeft from "url:./assets/players/p2/p2_sprite_left.png"
+import p2SpriteRight from "url:./assets/players/p2/p2_sprite_right.png"
+
+import p3SpriteUp from "url:./assets/players/p3/p3_sprite_up.png"
+import p3SpriteDown from "url:./assets/players/p3/p3_sprite_down.png"
+import p3SpriteLeft from "url:./assets/players/p3/p3_sprite_left.png"
+import p3SpriteRight from "url:./assets/players/p3/p3_sprite_right.png"
+
+const p1Sprites = {
+    up: p1SpriteUp,
+    down: p1SpriteDown,
+    left: p1SpriteLeft,
+    right: p1SpriteRight, 
+}
+
+const p2Sprites = {
+    up: p2SpriteUp,
+    down: p2SpriteDown,
+    left: p2SpriteLeft,
+    right: p2SpriteRight, 
+}
+
+const p3Sprites = {
+    up: p3SpriteUp,
+    down: p3SpriteDown,
+    left: p3SpriteLeft,
+    right: p3SpriteRight, 
+}
+
 export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = []
     elements.push(Clear.make({ color: "#228822" }))
@@ -128,32 +164,23 @@ export const view = (model: Model): CanvasElement[] => {
     })
 
     // PLAYERS
-    const renderPlayer = (p: any, imgSrc: string, label: string) => {
+    const renderPlayer = (p: any, imgSrcs: {[key: string]: string}) => {
         
         if (!p.isAlive) return
         
         elements.push(CanvasImage.make({
             x: (p.xCoordinate * TILE_SIZE) - TILE_SIZE / 2,
             y: (p.yCoordinate * TILE_SIZE) - TILE_SIZE / 2,
-            src: imgSrc
-        }))
-        elements.push(Text.make({
-            x: p.xCoordinate * TILE_SIZE,
-            y: p.yCoordinate * TILE_SIZE,
-            text: label,
-            color: "white",
-            fontSize: 12,
-            font: "bold Arial",
-            textAlign: "center"
+            src: imgSrcs[p.lastDirection] || imgSrcs["up"]
         }))
     }
 
     //RENDERING PLAYERS
     model.players.forEach(p=> {
-        if (p.id == "P1") renderPlayer(p, "./assets/p1_sprite.png", "P1")
-        if (p.id == "P2") renderPlayer(p, "./assets/p2_sprite.png", "P2")
-        if (p.id == "P3") renderPlayer(p, "./assets/p3_sprite.png", "P3")
-        if (p.id == "P4") renderPlayer(p, "./assets/p4_sprite.png", "P4")
+        if (p.id == "P1") renderPlayer(p, p1Sprites)
+        if (p.id == "P2") renderPlayer(p, p2Sprites)
+        if (p.id == "P3") renderPlayer(p, p3Sprites)
+        // if (p.id == "P4") renderPlayer(p, p4Sprites)
 
     })
 
