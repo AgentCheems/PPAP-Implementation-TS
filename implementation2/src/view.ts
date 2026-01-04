@@ -66,6 +66,8 @@ import powerupFire1 from "url:./assets/powerups/powerup_fire_1.png"
 import powerupFire2 from "url:./assets/powerups/powerup_fire_2.png"
 import powerupSpeed1 from "url:./assets/powerups/powerup_speed_1.png"
 import powerupSpeed2 from "url:./assets/powerups/powerup_speed_2.png"
+import powerupVest1 from "url:./assets/powerups/powerup_vest_1.png"
+import powerupVest2 from "url:./assets/powerups/powerup_vest_2.png" // part 2 here
 
 import deathSound from "url:./assets/sounds/death.mp3"
 import explosionSound from "url:./assets/sounds/explosion.mp3"
@@ -118,6 +120,7 @@ const powerupSprites = {
     [PowerupType.BombUp]: [powerupBomb1, powerupBomb2],
     [PowerupType.FireUp]: [powerupFire1, powerupFire2],
     [PowerupType.SpeedUp]: [powerupSpeed1, powerupSpeed2], 
+    [PowerupType.Vest]: [powerupVest1, powerupVest2], //part2 here
 }
 export const view = (model: Model): CanvasElement[] => {
     const elements: CanvasElement[] = []
@@ -220,6 +223,16 @@ export const view = (model: Model): CanvasElement[] => {
             y: (p.yCoordinate * TILE_SIZE) - TILE_SIZE / 2,
             src: (imgSrcs[p.lastDirection] || imgSrcs["up"]) as string
         }))
+
+        if (p.hasVest) {
+            elements.push(SolidCircle.make({
+                x: (p.xCoordinate * TILE_SIZE),
+                y: (p.yCoordinate * TILE_SIZE),
+                radius: TILE_SIZE / 2,
+                color: "rgba(0, 234, 255, 0.5)",
+            }))
+
+        }
     }
 
     //RENDERING PLAYERS
